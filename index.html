@@ -27,6 +27,12 @@
           </svg>
         );
 
+        const ArrowUpIcon = ({ className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>
+            </svg>
+        );
+
         const Spinner = () => (
             <div className="flex justify-center items-center h-full w-full p-8">
                 <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
@@ -268,6 +274,16 @@
             );
         };
 
+        const FloatingScrollButton = ({ onClick }) => (
+            <button
+                onClick={onClick}
+                className="fixed bottom-6 right-6 lg:bottom-8 lg:right-8 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-3 shadow-lg transition-opacity duration-300 z-50"
+                aria-label="Scroll to top"
+            >
+                <ArrowUpIcon className="w-6 h-6" />
+            </button>
+        );
+
         function App() {
           const [allCompetitions, setAllCompetitions] = useState([]);
           const [selectedEvent, setSelectedEvent] = useState(null);
@@ -276,6 +292,7 @@
           const [error, setError] = useState(null);
           const [stakeFilterValue, setStakeFilterValue] = useState('');
           const [stakeFilterType, setStakeFilterType] = useState('higher');
+          const [showScrollButton, setShowScrollButton] = useState(false);
           const mainContentRef = useRef(null);
 
           useEffect(() => {
@@ -336,12 +353,23 @@
             setIsSidebarOpen(false);
           };
 
-          // --- FIX: Use useEffect to scroll after render ---
           useEffect(() => {
             if (selectedEvent && mainContentRef.current) {
                 mainContentRef.current.scrollTop = 0;
             }
-          }, [selectedEvent]); // This effect runs whenever selectedEvent changes
+          }, [selectedEvent]);
+
+          const handleScroll = () => {
+              if (mainContentRef.current) {
+                  setShowScrollButton(mainContentRef.current.scrollTop > 300);
+              }
+          };
+
+          const scrollToTop = () => {
+              if (mainContentRef.current) {
+                  mainContentRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+              }
+          };
           
           return (
             <div className="bg-gray-900 font-sans min-h-screen flex text-white">
@@ -364,8 +392,9 @@
                     {loading ? <Spinner /> : error ? <p className="text-red-400 p-4">{error}</p> : <Sidebar groupedCompetitions={groupedAndFilteredCompetitions} onSelectEvent={handleSelectEvent} selectedEventId={selectedEvent?.id} />}
                 </div>
               </aside>
-              <main ref={mainContentRef} className="flex-1 overflow-y-auto">
+              <main ref={mainContentRef} onScroll={handleScroll} className="flex-1 overflow-y-auto relative">
                 {loading ? <Spinner /> : <EventDetails event={selectedEvent} />}
+                {showScrollButton && <FloatingScrollButton onClick={scrollToTop} />}
               </main>
             </div>
           );
