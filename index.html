@@ -115,64 +115,82 @@
 
         const LambdaGoalsDisplay = ({ markets, homeTeam, awayTeam }) => {
             const lambdaData = useMemo(() => {
-                const matchOddsMarket = markets['soccer.match_odds'];
-                const totalGoalsMarket = markets['soccer.total_goals'];
-                if (!matchOddsMarket || !totalGoalsMarket) return null;
-                const matchSelections = Object.values(matchOddsMarket.submarkets)[0]?.selections;
-                const totalSelections = Object.values(totalGoalsMarket.submarkets)[0]?.selections;
-                if (!matchSelections || !totalSelections) return null;
-                let closestPair = null;
-                let minDiff = Infinity;
-                const totals = {};
-                totalSelections.forEach(s => {
-                    const totalVal = s.params.split('=')[1];
-                    if (!totals[totalVal]) totals[totalVal] = {};
-                    totals[totalVal][s.outcome] = s.price;
-                });
-                for (const total in totals) {
-                    if (totals[total].over && totals[total].under) {
-                        const diff = Math.abs(totals[total].over - totals[total].under);
-                        if (diff < minDiff) {
-                            minDiff = diff;
-                            closestPair = total;
+                try {
+                    const matchOddsMarket = markets['soccer.match_odds'];
+                    const totalGoalsMarket = markets['soccer.total_goals'];
+                    if (!matchOddsMarket || !totalGoalsMarket) return null;
+
+                    const matchSelections = Object.values(matchOddsMarket.submarkets)[0]?.selections;
+                    const totalSelections = Object.values(totalGoalsMarket.submarkets)[0]?.selections;
+                    if (!matchSelections || !totalSelections) return null;
+
+                    let closestPair = null;
+                    let minDiff = Infinity;
+                    const totals = {};
+                    totalSelections.forEach(s => {
+                        const totalVal = s.params.split('=')[1];
+                        if (!totals[totalVal]) totals[totalVal] = {};
+                        totals[totalVal][s.outcome] = s.price;
+                    });
+
+                    for (const total in totals) {
+                        if (totals[total].over && totals[total].under) {
+                            const diff = Math.abs(totals[total].over - totals[total].under);
+                            if (diff < minDiff) {
+                                minDiff = diff;
+                                closestPair = total;
+                            }
                         }
                     }
-                }
-                const lambdaTotal = parseFloat(closestPair) || 2.5;
-                const homeSel = matchSelections.find(s => s.outcome === 'home');
-                const drawSel = matchSelections.find(s => s.outcome === 'draw');
-                const awaySel = matchSelections.find(s => s.outcome === 'away');
-                if (!homeSel || !awaySel || !drawSel) return null;
-                const probHome = 1 / homeSel.price;
-                const probAway = 1 / awaySel.price;
-                const probDraw = 1 / drawSel.price;
-                const totalProb = probHome + probAway + probDraw;
-                const trueProbHome = probHome / totalProb;
-                const trueProbAway = probAway / totalProb;
-                const lambdaHome = lambdaTotal * (trueProbHome / (trueProbHome + trueProbAway));
-                const lambdaAway = lambdaTotal * (trueProbAway / (trueProbHome + trueProbAway));
-                return { lambdaHome, lambdaAway, lambdaTotal };
-            }, [markets]);
+                    const lambdaTotal = parseFloat(closestPair) || 2.5;
 
-            if (!lambdaData) return null;
+                    const homeSel = matchSelections.find(s => s.outcome === 'home');
+                    const drawSel = matchSelections.find(s => s.outcome === 'draw');
+                    const awaySel = matchSelections.find(s => s.outcome === 'away');
+                    if (!homeSel || !awaySel || !drawSel) return null;
+
+                    const probHome = 1 / homeSel.price;
+                    const probAway = 1 / awaySel.price;
+                    const probDraw = 1 / drawSel.price;
+                    const totalProb = probHome + probAway + probDraw;
+                    if (totalProb === 0) return null;
+
+                    const trueProbHome = probHome / totalProb;
+                    const trueProbAway = probAway / totalProb;
+                    const denominator = trueProbHome + trueProbAway;
+                    if (denominator === 0) return null;
+
+                    const lambdaHome = lambdaTotal * (trueProbHome / denominator);
+                    const lambdaAway = lambdaTotal * (trueProbAway / denominator);
+
+                    return { lambdaHome, lambdaAway, lambdaTotal };
+                } catch (error) {
+                    console.error("Error calculating lambda goals:", error);
+                    return null;
+                }
+            }, [markets]);
 
             return (
                 <div className="bg-gray-800 rounded-lg shadow-lg p-4">
                     <h3 className="text-lg font-semibold text-white mb-3 text-center">Expected Goals (Lambda)</h3>
-                    <div className="flex justify-around text-center">
-                        <div>
-                            <div className="text-sm text-gray-400">{homeTeam}</div>
-                            <div className="text-2xl font-bold text-cyan-400">{lambdaData.lambdaHome.toFixed(2)}</div>
+                    {lambdaData ? (
+                        <div className="flex justify-around text-center">
+                            <div>
+                                <div className="text-sm text-gray-400">{homeTeam}</div>
+                                <div className="text-2xl font-bold text-cyan-400">{lambdaData.lambdaHome.toFixed(2)}</div>
+                            </div>
+                            <div>
+                                <div className="text-sm text-gray-400">Total Match</div>
+                                <div className="text-2xl font-bold text-white">{lambdaData.lambdaTotal.toFixed(2)}</div>
+                            </div>
+                            <div>
+                                <div className="text-sm text-gray-400">{awayTeam}</div>
+                                <div className="text-2xl font-bold text-cyan-400">{lambdaData.lambdaAway.toFixed(2)}</div>
+                            </div>
                         </div>
-                        <div>
-                            <div className="text-sm text-gray-400">Total Match</div>
-                            <div className="text-2xl font-bold text-white">{lambdaData.lambdaTotal.toFixed(2)}</div>
-                        </div>
-                        <div>
-                            <div className="text-sm text-gray-400">{awayTeam}</div>
-                            <div className="text-2xl font-bold text-cyan-400">{lambdaData.lambdaAway.toFixed(2)}</div>
-                        </div>
-                    </div>
+                    ) : (
+                        <p className="text-center text-gray-400 text-sm">Calculation data not available for this match.</p>
+                    )}
                 </div>
             );
         };
@@ -258,7 +276,7 @@
           const [error, setError] = useState(null);
           const [stakeFilterValue, setStakeFilterValue] = useState('');
           const [stakeFilterType, setStakeFilterType] = useState('higher');
-          const mainContentRef = useRef(null); // Create a ref for the main content area
+          const mainContentRef = useRef(null);
 
           useEffect(() => {
             const fetchData = async () => {
@@ -316,11 +334,14 @@
           const handleSelectEvent = (event) => {
             setSelectedEvent(event);
             setIsSidebarOpen(false);
-            // --- NEW: Scroll main content to top ---
-            if (mainContentRef.current) {
+          };
+
+          // --- FIX: Use useEffect to scroll after render ---
+          useEffect(() => {
+            if (selectedEvent && mainContentRef.current) {
                 mainContentRef.current.scrollTop = 0;
             }
-          };
+          }, [selectedEvent]); // This effect runs whenever selectedEvent changes
           
           return (
             <div className="bg-gray-900 font-sans min-h-screen flex text-white">
@@ -343,7 +364,6 @@
                     {loading ? <Spinner /> : error ? <p className="text-red-400 p-4">{error}</p> : <Sidebar groupedCompetitions={groupedAndFilteredCompetitions} onSelectEvent={handleSelectEvent} selectedEventId={selectedEvent?.id} />}
                 </div>
               </aside>
-              {/* Attach the ref to the main element */}
               <main ref={mainContentRef} className="flex-1 overflow-y-auto">
                 {loading ? <Spinner /> : <EventDetails event={selectedEvent} />}
               </main>
