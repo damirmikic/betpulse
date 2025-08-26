@@ -117,15 +117,10 @@
             const lambdaData = useMemo(() => {
                 const matchOddsMarket = markets['soccer.match_odds'];
                 const totalGoalsMarket = markets['soccer.total_goals'];
-
                 if (!matchOddsMarket || !totalGoalsMarket) return null;
-
                 const matchSelections = Object.values(matchOddsMarket.submarkets)[0]?.selections;
                 const totalSelections = Object.values(totalGoalsMarket.submarkets)[0]?.selections;
-
                 if (!matchSelections || !totalSelections) return null;
-
-                // 1. Find total goals line where odds are closest (best estimate for lambda_total)
                 let closestPair = null;
                 let minDiff = Infinity;
                 const totals = {};
@@ -134,7 +129,6 @@
                     if (!totals[totalVal]) totals[totalVal] = {};
                     totals[totalVal][s.outcome] = s.price;
                 });
-
                 for (const total in totals) {
                     if (totals[total].over && totals[total].under) {
                         const diff = Math.abs(totals[total].over - totals[total].under);
@@ -144,33 +138,23 @@
                         }
                     }
                 }
-                const lambdaTotal = parseFloat(closestPair) || 2.5; // Fallback to 2.5
-
-                // 2. Calculate true probabilities for match odds (remove vig)
+                const lambdaTotal = parseFloat(closestPair) || 2.5;
                 const homeSel = matchSelections.find(s => s.outcome === 'home');
                 const drawSel = matchSelections.find(s => s.outcome === 'draw');
                 const awaySel = matchSelections.find(s => s.outcome === 'away');
-
-                if (!homeSel || !awaySel) return null;
-
+                if (!homeSel || !awaySel || !drawSel) return null;
                 const probHome = 1 / homeSel.price;
                 const probAway = 1 / awaySel.price;
                 const probDraw = 1 / drawSel.price;
                 const totalProb = probHome + probAway + probDraw;
-
                 const trueProbHome = probHome / totalProb;
                 const trueProbAway = probAway / totalProb;
-
-                // 3. Apportion total lambda based on win probabilities
                 const lambdaHome = lambdaTotal * (trueProbHome / (trueProbHome + trueProbAway));
                 const lambdaAway = lambdaTotal * (trueProbAway / (trueProbHome + trueProbAway));
-
                 return { lambdaHome, lambdaAway, lambdaTotal };
             }, [markets]);
 
-            if (!lambdaData) {
-                return null; // Don't render if data is insufficient
-            }
+            if (!lambdaData) return null;
 
             return (
                 <div className="bg-gray-800 rounded-lg shadow-lg p-4">
@@ -193,7 +177,6 @@
             );
         };
 
-
         const EventDetails = ({ event }) => {
           const markets = useMemo(() => event ? event.markets || {} : {}, [event]);
           if (!event) {
@@ -209,9 +192,7 @@
                 <h2 className="text-2xl sm:text-3xl font-bold text-white">{event.name}</h2>
                 <p className="text-sm text-gray-400 mt-1">{formatDate(event.cutoffTime)}</p>
               </div>
-
               <LambdaGoalsDisplay markets={markets} homeTeam={event.home.name} awayTeam={event.away.name} />
-
               {Object.keys(markets).length > 0 ? (
                 Object.entries(markets).map(([marketKey, marketData]) => <MarketDisplay key={marketKey} marketKey={marketKey} marketData={marketData} homeTeam={event.home.name} awayTeam={event.away.name} />)
               ) : (
@@ -223,26 +204,15 @@
 
         const Sidebar = ({ groupedCompetitions, onSelectEvent, selectedEventId }) => {
             const [expanded, setExpanded] = useState({});
-
-            const toggleExpand = (key) => {
-                setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
-            };
-
+            const toggleExpand = (key) => setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
             useEffect(() => {
                 if (groupedCompetitions && Object.keys(groupedCompetitions).length > 0) {
                     const firstCountry = Object.keys(groupedCompetitions)[0];
                     const firstCompetition = Object.keys(groupedCompetitions[firstCountry])[0];
-                    setExpanded({
-                        [firstCountry]: true,
-                        [`${firstCountry}-${firstCompetition}`]: true
-                    });
+                    setExpanded({ [firstCountry]: true, [`${firstCountry}-${firstCompetition}`]: true });
                 }
             }, [groupedCompetitions]);
-
-            if (!groupedCompetitions || Object.keys(groupedCompetitions).length === 0) {
-                return <p className="text-gray-400 p-4">No matches found for the current filter.</p>;
-            }
-
+            if (!groupedCompetitions || Object.keys(groupedCompetitions).length === 0) return <p className="text-gray-400 p-4">No matches found for the current filter.</p>;
             return (
                 <nav className="space-y-1">
                     {Object.entries(groupedCompetitions).map(([country, competitions]) => (
@@ -288,6 +258,7 @@
           const [error, setError] = useState(null);
           const [stakeFilterValue, setStakeFilterValue] = useState('');
           const [stakeFilterType, setStakeFilterType] = useState('higher');
+          const mainContentRef = useRef(null); // Create a ref for the main content area
 
           useEffect(() => {
             const fetchData = async () => {
@@ -307,9 +278,7 @@
           }, []);
 
           const filteredCompetitions = useMemo(() => {
-            if (!stakeFilterValue || isNaN(parseFloat(stakeFilterValue))) {
-                return allCompetitions;
-            }
+            if (!stakeFilterValue || isNaN(parseFloat(stakeFilterValue))) return allCompetitions;
             const filterValue = parseFloat(stakeFilterValue);
             return allCompetitions.map(comp => {
                 const filteredEvents = comp.events.filter(event => {
@@ -338,10 +307,7 @@
               const firstCountry = Object.keys(groupedAndFilteredCompetitions)[0];
               if (firstCountry) {
                   const firstCompetition = Object.keys(groupedAndFilteredCompetitions[firstCountry])[0];
-                  if (firstCompetition) {
-                      const firstEvent = groupedAndFilteredCompetitions[firstCountry][firstCompetition][0];
-                      setSelectedEvent(firstEvent);
-                  }
+                  if (firstCompetition) setSelectedEvent(groupedAndFilteredCompetitions[firstCountry][firstCompetition][0]);
               } else {
                   setSelectedEvent(null);
               }
@@ -350,6 +316,10 @@
           const handleSelectEvent = (event) => {
             setSelectedEvent(event);
             setIsSidebarOpen(false);
+            // --- NEW: Scroll main content to top ---
+            if (mainContentRef.current) {
+                mainContentRef.current.scrollTop = 0;
+            }
           };
           
           return (
@@ -373,7 +343,8 @@
                     {loading ? <Spinner /> : error ? <p className="text-red-400 p-4">{error}</p> : <Sidebar groupedCompetitions={groupedAndFilteredCompetitions} onSelectEvent={handleSelectEvent} selectedEventId={selectedEvent?.id} />}
                 </div>
               </aside>
-              <main className="flex-1 overflow-y-auto">
+              {/* Attach the ref to the main element */}
+              <main ref={mainContentRef} className="flex-1 overflow-y-auto">
                 {loading ? <Spinner /> : <EventDetails event={selectedEvent} />}
               </main>
             </div>
