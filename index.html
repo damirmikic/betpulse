@@ -28,7 +28,7 @@
         );
 
         const ArrowUpIcon = ({ className }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
                 <path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>
             </svg>
         );
@@ -46,6 +46,81 @@
                 timeStyle: 'short'
             });
         };
+
+        // --- Poisson Calculation Logic (based on provided VBA) ---
+        const factorial = (n) => {
+            if (n === 0 || n === 1) return 1;
+            let result = 1;
+            for (let i = 2; i <= n; i++) {
+                result *= i;
+            }
+            return result;
+        };
+
+        const poisson = (mu, x) => {
+            return (Math.pow(mu, x) * Math.exp(-mu)) / factorial(x);
+        };
+
+        const homeAndUnderProbs = (homeExpectedGoals, awayExpectedGoals, goalLine) => {
+            let home = 0, away = 0, under = 0, over = 0;
+            for (let i = 0; i <= 20; i++) {
+                for (let j = 0; j <= 20; j++) {
+                    const prob = poisson(homeExpectedGoals, i) * poisson(awayExpectedGoals, j);
+                    if (i > j) home += prob;
+                    else if (j > i) away += prob;
+                    if (i + j < goalLine) under += prob;
+                    else if (i + j > goalLine) over += prob;
+                }
+            }
+            const homeNorm = home / (home + away);
+            const underNorm = under / (under + over);
+            return [homeNorm, underNorm];
+        };
+
+        const calculateExpectedGoals = (overPrice, underPrice, homePrice, awayPrice, drawPrice) => {
+            let totalGoals = 2.5;
+            let supremacy = 0;
+            const goalLine = 2.5;
+
+            const normalisedUnder = (1 / underPrice) / ((1 / overPrice) + (1 / underPrice));
+            const normalisedHome = (1 / homePrice) / ((1 / homePrice) + (1 / awayPrice) + (1 / drawPrice));
+
+            // Iteratively find totalGoals
+            let increment = (homeAndUnderProbs(totalGoals / 2, totalGoals / 2, goalLine)[1] > normalisedUnder) ? -0.05 : 0.05;
+            let error = 1, previousError = 2;
+            while (error < previousError) {
+                totalGoals += increment;
+                let homeExpected = totalGoals / 2 + supremacy / 2;
+                let awayExpected = totalGoals / 2 - supremacy / 2;
+                if (homeExpected < 0 || awayExpected < 0) break;
+                previousError = error;
+                error = Math.abs(homeAndUnderProbs(homeExpected, awayExpected, goalLine)[1] - normalisedUnder);
+            }
+            totalGoals -= increment;
+
+            // Iteratively find supremacy
+            increment = (homeAndUnderProbs(totalGoals / 2, totalGoals / 2, goalLine)[0] > normalisedHome) ? -0.05 : 0.05;
+            error = 1; previousError = 2;
+            while (error < previousError) {
+                supremacy += increment;
+                let homeExpected = totalGoals / 2 + supremacy / 2;
+                let awayExpected = totalGoals / 2 - supremacy / 2;
+                if (homeExpected < 0 || awayExpected < 0) break;
+                previousError = error;
+                error = Math.abs(homeAndUnderProbs(homeExpected, awayExpected, goalLine)[0] - normalisedHome);
+            }
+            supremacy -= increment;
+
+            const homeExpectedGoals = totalGoals / 2 + supremacy / 2;
+            const awayExpectedGoals = totalGoals / 2 - supremacy / 2;
+
+            return {
+                lambdaHome: homeExpectedGoals,
+                lambdaAway: awayExpectedGoals,
+                lambdaTotal: totalGoals
+            };
+        };
+
 
         // --- Main Application Components ---
 
@@ -129,47 +204,17 @@
                     const matchSelections = Object.values(matchOddsMarket.submarkets)[0]?.selections;
                     const totalSelections = Object.values(totalGoalsMarket.submarkets)[0]?.selections;
                     if (!matchSelections || !totalSelections) return null;
-
-                    let closestPair = null;
-                    let minDiff = Infinity;
-                    const totals = {};
-                    totalSelections.forEach(s => {
-                        const totalVal = s.params.split('=')[1];
-                        if (!totals[totalVal]) totals[totalVal] = {};
-                        totals[totalVal][s.outcome] = s.price;
-                    });
-
-                    for (const total in totals) {
-                        if (totals[total].over && totals[total].under) {
-                            const diff = Math.abs(totals[total].over - totals[total].under);
-                            if (diff < minDiff) {
-                                minDiff = diff;
-                                closestPair = total;
-                            }
-                        }
-                    }
-                    const lambdaTotal = parseFloat(closestPair) || 2.5;
-
+                    
                     const homeSel = matchSelections.find(s => s.outcome === 'home');
                     const drawSel = matchSelections.find(s => s.outcome === 'draw');
                     const awaySel = matchSelections.find(s => s.outcome === 'away');
-                    if (!homeSel || !awaySel || !drawSel) return null;
+                    
+                    const over25 = totalSelections.find(s => s.params === 'total=2.5' && s.outcome === 'over');
+                    const under25 = totalSelections.find(s => s.params === 'total=2.5' && s.outcome === 'under');
 
-                    const probHome = 1 / homeSel.price;
-                    const probAway = 1 / awaySel.price;
-                    const probDraw = 1 / drawSel.price;
-                    const totalProb = probHome + probAway + probDraw;
-                    if (totalProb === 0) return null;
-
-                    const trueProbHome = probHome / totalProb;
-                    const trueProbAway = probAway / totalProb;
-                    const denominator = trueProbHome + trueProbAway;
-                    if (denominator === 0) return null;
-
-                    const lambdaHome = lambdaTotal * (trueProbHome / denominator);
-                    const lambdaAway = lambdaTotal * (trueProbAway / denominator);
-
-                    return { lambdaHome, lambdaAway, lambdaTotal };
+                    if (!homeSel || !drawSel || !awaySel || !over25 || !under25) return null;
+                    
+                    return calculateExpectedGoals(over25.price, under25.price, homeSel.price, awaySel.price, drawSel.price);
                 } catch (error) {
                     console.error("Error calculating lambda goals:", error);
                     return null;
@@ -372,7 +417,7 @@
           };
           
           return (
-            <div className="bg-gray-900 font-sans min-h-screen flex text-white">
+            <div className="bg-gray-900 font-sans h-screen flex flex-col lg:flex-row overflow-hidden text-white">
               <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="lg:hidden fixed top-4 left-4 z-30 p-2 bg-blue-600 rounded-md text-white" aria-label="Toggle sidebar">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
               </button>
