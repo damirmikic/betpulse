@@ -33,28 +33,23 @@
             </svg>
         );
 
-        const Spinner = () => (
-            <div className="flex justify-center items-center h-full w-full p-8">
-                <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
+        const Spinner = ({ size = 'h-16 w-16' }) => (
+            <div className={`flex justify-center items-center h-full w-full p-8`}>
+                <div className={`animate-spin rounded-full ${size} border-t-2 border-b-2 border-blue-500`}></div>
             </div>
         );
 
         const formatDate = (isoString) => {
             if (!isoString) return 'N/A';
-            return new Date(isoString).toLocaleString(undefined, {
-                dateStyle: 'medium',
-                timeStyle: 'short'
-            });
+            return new Date(isoString).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
         };
 
-        // --- Poisson Calculation Logic (based on provided VBA) ---
+        // --- Poisson Calculation Logic ---
         const factorial = (n) => {
             if (n > 170) return Infinity;
             if (n === 0 || n === 1) return 1;
             let result = 1;
-            for (let i = 2; i <= n; i++) {
-                result *= i;
-            }
+            for (let i = 2; i <= n; i++) result *= i;
             return result;
         };
 
@@ -65,114 +60,57 @@
 
         const homeAndUnderProbs = (homeExpectedGoals, awayExpectedGoals, goalLine) => {
             let home = 0, away = 0, under = 0, over = 0;
-            for (let i = 0; i <= 10; i++) { // Reduced loop for performance
+            for (let i = 0; i <= 10; i++) {
                 for (let j = 0; j <= 10; j++) {
                     const prob = poisson(homeExpectedGoals, i) * poisson(awayExpectedGoals, j);
-                    if (i > j) home += prob;
-                    else if (j > i) away += prob;
-                    if (i + j < goalLine) under += prob;
-                    else if (i + j > goalLine) over += prob;
+                    if (i > j) home += prob; else if (j > i) away += prob;
+                    if (i + j < goalLine) under += prob; else if (i + j > goalLine) over += prob;
                 }
             }
-            const homeNorm = home / (home + away);
-            const underNorm = under / (under + over);
-            return [homeNorm, underNorm];
+            return [home / (home + away), under / (under + over)];
         };
 
         const calculateExpectedGoals = (overPrice, underPrice, homePrice, awayPrice, drawPrice, goalLine) => {
             const normalisedUnder = (1 / underPrice) / ((1 / overPrice) + (1 / underPrice));
             const normalisedHome = (1 / homePrice) / ((1 / homePrice) + (1 / awayPrice));
-
-            // Step 1: Find the best totalGoals value by minimizing error
-            let bestTotalGoals = 0;
-            let minError = Infinity;
+            let bestTotalGoals = 0, minError = Infinity;
             for (let tg = 1.0; tg <= 5.0; tg += 0.01) {
                 const currentError = Math.abs(homeAndUnderProbs(tg / 2, tg / 2, goalLine)[1] - normalisedUnder);
-                if (currentError < minError) {
-                    minError = currentError;
-                    bestTotalGoals = tg;
-                }
+                if (currentError < minError) { minError = currentError; bestTotalGoals = tg; }
             }
-            
-            // Step 2: Using the best totalGoals, find the best supremacy value
-            let bestSupremacy = 0;
-            minError = Infinity;
+            let bestSupremacy = 0; minError = Infinity;
             for (let sup = -2.0; sup <= 2.0; sup += 0.01) {
-                let homeExpected = bestTotalGoals / 2 + sup / 2;
-                let awayExpected = bestTotalGoals / 2 - sup / 2;
+                let homeExpected = bestTotalGoals / 2 + sup / 2, awayExpected = bestTotalGoals / 2 - sup / 2;
                 if (homeExpected < 0 || awayExpected < 0) continue;
                 const currentError = Math.abs(homeAndUnderProbs(homeExpected, awayExpected, goalLine)[0] - normalisedHome);
-                if (currentError < minError) {
-                    minError = currentError;
-                    bestSupremacy = sup;
-                }
+                if (currentError < minError) { minError = currentError; bestSupremacy = sup; }
             }
-
-            const homeExpectedGoals = bestTotalGoals / 2 + bestSupremacy / 2;
-            const awayExpectedGoals = bestTotalGoals / 2 - bestSupremacy / 2;
-
-            return {
-                lambdaHome: homeExpectedGoals,
-                lambdaAway: awayExpectedGoals,
-                lambdaTotal: bestTotalGoals
-            };
+            return { lambdaHome: bestTotalGoals / 2 + bestSupremacy / 2, lambdaAway: bestTotalGoals / 2 - bestSupremacy / 2, lambdaTotal: bestTotalGoals };
         };
-
 
         // --- Main Application Components ---
+        const OddsButton = ({ label, price, maxStake, probability }) => (
+            <button className="flex-1 p-2 bg-gray-700/60 hover:bg-blue-600/80 rounded-md transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-blue-400 text-center">
+                <span className="block text-sm text-gray-300 font-medium">{label}</span>
+                <span className="block text-lg font-bold text-white mt-1">{price.toFixed(3)}</span>
+                <span className="block text-xs text-cyan-400">{(probability * 100).toFixed(1)}%</span>
+                <span className="block text-xs text-gray-400 mt-1">${maxStake.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
+            </button>
+        );
 
-        const OddsButton = ({ label, price, maxStake, probability }) => {
-            return (
-                <button className="flex-1 p-2 bg-gray-700/60 hover:bg-blue-600/80 rounded-md transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-blue-400 text-center">
-                    <span className="block text-sm text-gray-300 font-medium">{label}</span>
-                    <span className="block text-lg font-bold text-white mt-1">{price.toFixed(3)}</span>
-                    <span className="block text-xs text-cyan-400">{(probability * 100).toFixed(1)}%</span>
-                    <span className="block text-xs text-gray-400 mt-1">${maxStake.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
-                </button>
-            );
-        };
-
-        const formatMarketTitle = (marketKey) => {
-          return marketKey.replace('soccer.', '').replace(/_/g, ' ').split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-        };
+        const formatMarketTitle = (marketKey) => marketKey.replace('soccer.', '').replace(/_/g, ' ').split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 
         const MarketDisplay = ({ marketKey, marketData, homeTeam, awayTeam }) => {
             const [isExpanded, setIsExpanded] = useState(true);
             const selections = Object.values(marketData.submarkets)[0]?.selections || [];
-
             const renderMarket = () => {
                 if (marketKey === 'soccer.match_odds') {
-                    const home = selections.find(s => s.outcome === 'home');
-                    const draw = selections.find(s => s.outcome === 'draw');
-                    const away = selections.find(s => s.outcome === 'away');
-                    return (
-                        <div className="grid grid-cols-3 gap-2">
-                            {home ? <OddsButton {...home} label={homeTeam} /> : <div/>}
-                            {draw ? <OddsButton {...draw} label="Draw" /> : <div/>}
-                            {away ? <OddsButton {...away} label={awayTeam} /> : <div/>}
-                        </div>
-                    );
+                    const home = selections.find(s => s.outcome === 'home'), draw = selections.find(s => s.outcome === 'draw'), away = selections.find(s => s.outcome === 'away');
+                    return <div className="grid grid-cols-3 gap-2">{home && <OddsButton {...home} label={homeTeam} />}{draw && <OddsButton {...draw} label="Draw" />}{away && <OddsButton {...away} label={awayTeam} />}</div>;
                 }
                 if (marketKey.includes('total_goals')) {
-                    const groupedByTotal = selections.reduce((acc, sel) => {
-                        const total = sel.params.split('=')[1];
-                        if (!acc[total]) acc[total] = {};
-                        acc[total][sel.outcome] = sel;
-                        return acc;
-                    }, {});
-                    return (
-                        <div className="space-y-3">
-                            {Object.entries(groupedByTotal).map(([total, outcomes]) => (
-                                <div key={total} className="flex items-center gap-2">
-                                    <div className="w-20 text-center text-gray-300 font-semibold">{total}</div>
-                                    <div className="flex-1 grid grid-cols-2 gap-2">
-                                        {outcomes.over ? <OddsButton {...outcomes.over} label="Over" /> : <div/>}
-                                        {outcomes.under ? <OddsButton {...outcomes.under} label="Under" /> : <div/>}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    );
+                    const groupedByTotal = selections.reduce((acc, sel) => { const total = sel.params.split('=')[1]; if (!acc[total]) acc[total] = {}; acc[total][sel.outcome] = sel; return acc; }, {});
+                    return <div className="space-y-3">{Object.entries(groupedByTotal).map(([total, outcomes]) => <div key={total} className="flex items-center gap-2"><div className="w-20 text-center text-gray-300 font-semibold">{total}</div><div className="flex-1 grid grid-cols-2 gap-2">{outcomes.over && <OddsButton {...outcomes.over} label="Over" />}{outcomes.under && <OddsButton {...outcomes.under} label="Under" />}</div></div>)}</div>;
                 }
                 return <p>Unsupported market type.</p>;
             };
@@ -182,11 +120,7 @@
                         <h3 className="text-lg">{formatMarketTitle(marketKey)}</h3>
                         <ChevronDownIcon className={`w-5 h-5 transform transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
                     </button>
-                    {isExpanded && (
-                        <div className="p-4 border-t border-gray-700/50">
-                            {renderMarket()}
-                        </div>
-                    )}
+                    {isExpanded && <div className="p-4 border-t border-gray-700/50">{renderMarket()}</div>}
                 </div>
             );
         };
@@ -194,265 +128,117 @@
         const LambdaGoalsDisplay = ({ markets, homeTeam, awayTeam }) => {
             const lambdaData = useMemo(() => {
                 try {
-                    const matchOddsMarket = markets['soccer.match_odds'];
-                    const totalGoalsMarket = markets['soccer.total_goals'];
+                    const matchOddsMarket = markets['soccer.match_odds'], totalGoalsMarket = markets['soccer.total_goals'];
                     if (!matchOddsMarket || !totalGoalsMarket) return null;
-
-                    const matchSelections = Object.values(matchOddsMarket.submarkets)[0]?.selections;
-                    const totalSelections = Object.values(totalGoalsMarket.submarkets)[0]?.selections;
+                    const matchSelections = Object.values(matchOddsMarket.submarkets)[0]?.selections, totalSelections = Object.values(totalGoalsMarket.submarkets)[0]?.selections;
                     if (!matchSelections || !totalSelections) return null;
-                    
-                    const homeSel = matchSelections.find(s => s.outcome === 'home');
-                    const drawSel = matchSelections.find(s => s.outcome === 'draw');
-                    const awaySel = matchSelections.find(s => s.outcome === 'away');
-                    
-                    // --- NEW: Dynamic Goal Line Logic ---
-                    let mainGoalLineData = null;
-                    let minDiff = Infinity;
+                    const homeSel = matchSelections.find(s => s.outcome === 'home'), drawSel = matchSelections.find(s => s.outcome === 'draw'), awaySel = matchSelections.find(s => s.outcome === 'away');
+                    let mainGoalLineData = null, minDiff = Infinity;
                     const totals = {};
-                    totalSelections.forEach(s => {
-                        const totalVal = s.params.split('=')[1];
-                        if (!totals[totalVal]) totals[totalVal] = {};
-                        totals[totalVal][s.outcome] = s.price;
-                    });
-
+                    totalSelections.forEach(s => { const totalVal = s.params.split('=')[1]; if (!totals[totalVal]) totals[totalVal] = {}; totals[totalVal][s.outcome] = s.price; });
                     for (const total in totals) {
                         if (totals[total].over && totals[total].under) {
                             const diff = Math.abs(totals[total].over - totals[total].under);
-                            if (diff < minDiff) {
-                                minDiff = diff;
-                                mainGoalLineData = {
-                                    goalLine: parseFloat(total),
-                                    overPrice: totals[total].over,
-                                    underPrice: totals[total].under
-                                };
-                            }
+                            if (diff < minDiff) { minDiff = diff; mainGoalLineData = { goalLine: parseFloat(total), overPrice: totals[total].over, underPrice: totals[total].under }; }
                         }
                     }
-
                     if (!homeSel || !drawSel || !awaySel || !mainGoalLineData) return null;
-                    
                     return calculateExpectedGoals(mainGoalLineData.overPrice, mainGoalLineData.underPrice, homeSel.price, awaySel.price, drawSel.price, mainGoalLineData.goalLine);
-                } catch (error) {
-                    console.error("Error calculating lambda goals:", error);
-                    return null;
-                }
+                } catch (error) { console.error("Error calculating lambda goals:", error); return null; }
             }, [markets]);
-
             return (
                 <div className="bg-gray-800 rounded-lg shadow-lg p-4">
                     <h3 className="text-lg font-semibold text-white mb-3 text-center">Expected Goals (Lambda)</h3>
-                    {lambdaData ? (
-                        <div className="flex justify-around text-center">
-                            <div>
-                                <div className="text-sm text-gray-400">{homeTeam}</div>
-                                <div className="text-2xl font-bold text-cyan-400">{lambdaData.lambdaHome.toFixed(2)}</div>
-                            </div>
-                            <div>
-                                <div className="text-sm text-gray-400">Total Match</div>
-                                <div className="text-2xl font-bold text-white">{lambdaData.lambdaTotal.toFixed(2)}</div>
-                            </div>
-                            <div>
-                                <div className="text-sm text-gray-400">{awayTeam}</div>
-                                <div className="text-2xl font-bold text-cyan-400">{lambdaData.lambdaAway.toFixed(2)}</div>
-                            </div>
-                        </div>
-                    ) : (
-                        <p className="text-center text-gray-400 text-sm">Calculation data not available for this match.</p>
-                    )}
+                    {lambdaData ? <div className="flex justify-around text-center"><div><div className="text-sm text-gray-400">{homeTeam}</div><div className="text-2xl font-bold text-cyan-400">{lambdaData.lambdaHome.toFixed(2)}</div></div><div><div className="text-sm text-gray-400">Total Match</div><div className="text-2xl font-bold text-white">{lambdaData.lambdaTotal.toFixed(2)}</div></div><div><div className="text-sm text-gray-400">{awayTeam}</div><div className="text-2xl font-bold text-cyan-400">{lambdaData.lambdaAway.toFixed(2)}</div></div></div> : <p className="text-center text-gray-400 text-sm">Calculation data not available.</p>}
                 </div>
             );
         };
 
         const EventDetails = ({ event }) => {
           const markets = useMemo(() => event ? event.markets || {} : {}, [event]);
-          if (!event) {
-            return (
-              <div className="flex items-center justify-center h-full text-gray-400 p-4 text-center">
-                <p className="text-xl">Select an event from the sidebar to see the odds.</p>
-              </div>
-            );
-          }
-          return (
-            <div className="max-w-4xl mx-auto p-4 space-y-4">
-              <div className="text-center">
-                <h2 className="text-2xl sm:text-3xl font-bold text-white">{event.name}</h2>
-                <p className="text-sm text-gray-400 mt-1">{formatDate(event.cutoffTime)}</p>
-              </div>
-              <LambdaGoalsDisplay markets={markets} homeTeam={event.home.name} awayTeam={event.away.name} />
-              {Object.keys(markets).length > 0 ? (
-                Object.entries(markets).map(([marketKey, marketData]) => <MarketDisplay key={marketKey} marketKey={marketKey} marketData={marketData} homeTeam={event.home.name} awayTeam={event.away.name} />)
-              ) : (
-                <p className="text-center text-gray-400 bg-gray-800 p-6 rounded-lg">No market data available for this event.</p>
-              )}
-            </div>
-          );
+          if (!event) return <div className="flex items-center justify-center h-full text-gray-400 p-4 text-center"><p className="text-xl">Select an event from the sidebar.</p></div>;
+          return <div className="max-w-4xl mx-auto p-4 space-y-4"><div className="text-center"><h2 className="text-2xl sm:text-3xl font-bold text-white">{event.name}</h2><p className="text-sm text-gray-400 mt-1">{formatDate(event.cutoffTime)}</p></div><LambdaGoalsDisplay markets={markets} homeTeam={event.home.name} awayTeam={event.away.name} />{Object.keys(markets).length > 0 ? Object.entries(markets).map(([key, data]) => <MarketDisplay key={key} marketKey={key} marketData={data} homeTeam={event.home.name} awayTeam={event.away.name} />) : <p className="text-center text-gray-400 bg-gray-800 p-6 rounded-lg">No market data available.</p>}</div>;
         };
 
-        const Sidebar = ({ groupedCompetitions, onSelectEvent, selectedEventId }) => {
+        const Sidebar = ({ groupedData, onSelectEvent, selectedEventId, onExpandCompetition, loadingEvents }) => {
             const [expanded, setExpanded] = useState({});
-            const toggleExpand = (key) => setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
-            useEffect(() => {
-                if (groupedCompetitions && Object.keys(groupedCompetitions).length > 0) {
-                    const firstCountry = Object.keys(groupedCompetitions)[0];
-                    const firstCompetition = Object.keys(groupedCompetitions[firstCountry])[0];
-                    setExpanded({ [firstCountry]: true, [`${firstCountry}-${firstCompetition}`]: true });
-                }
-            }, [groupedCompetitions]);
-            if (!groupedCompetitions || Object.keys(groupedCompetitions).length === 0) return <p className="text-gray-400 p-4">No matches found for the current filter.</p>;
+            const toggleExpand = (key, hasEvents) => {
+                if (!hasEvents) onExpandCompetition(key);
+                setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
+            };
+            if (!groupedData || Object.keys(groupedData).length === 0) return <p className="text-gray-400 p-4">No competitions found.</p>;
             return (
                 <nav className="space-y-1">
-                    {Object.entries(groupedCompetitions).map(([country, competitions]) => (
+                    {Object.entries(groupedData).map(([country, competitions]) => (
                         <div key={country} className="bg-gray-800/50 rounded-lg overflow-hidden">
-                            <button onClick={() => toggleExpand(country)} className="w-full flex justify-between items-center p-3 text-left font-semibold text-white bg-gray-700/30 hover:bg-gray-700/60">
-                                <span className="capitalize">{country}</span>
-                                <ChevronDownIcon className={`w-5 h-5 transform transition-transform duration-300 ${expanded[country] ? 'rotate-180' : ''}`} />
-                            </button>
-                            {expanded[country] && (
-                                <div className="pl-2 pr-1 py-1">
-                                    {Object.entries(competitions).map(([competitionName, events]) => (
-                                        <div key={competitionName} className="bg-gray-800 rounded-md overflow-hidden">
-                                            <button onClick={() => toggleExpand(`${country}-${competitionName}`)} className="w-full flex justify-between items-center p-2 text-left text-sm font-medium text-gray-300 hover:bg-gray-700/60">
-                                                <span>{competitionName}</span>
-                                                <ChevronDownIcon className={`w-4 h-4 transform transition-transform duration-300 ${expanded[`${country}-${competitionName}`] ? 'rotate-180' : ''}`} />
-                                            </button>
-                                            {expanded[`${country}-${competitionName}`] && (
-                                                <ul className="p-2 space-y-1">
-                                                    {events.map(event => (
-                                                        <li key={event.id}>
-                                                            <button onClick={() => onSelectEvent(event)} className={`w-full text-left p-2 rounded-md text-xs transition-colors duration-200 ${selectedEventId === event.id ? 'bg-blue-600 text-white font-semibold' : 'text-gray-300 hover:bg-gray-700/60'}`}>
-                                                                {event.name}
-                                                            </button>
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
+                            <button onClick={() => toggleExpand(country)} className="w-full flex justify-between items-center p-3 text-left font-semibold text-white bg-gray-700/30 hover:bg-gray-700/60"><span className="capitalize">{country}</span><ChevronDownIcon className={`w-5 h-5 transform transition-transform duration-300 ${expanded[country] ? 'rotate-180' : ''}`} /></button>
+                            {expanded[country] && <div className="pl-2 pr-1 py-1">{Object.values(competitions).map(comp => <div key={comp.key} className="bg-gray-800 rounded-md overflow-hidden"><button onClick={() => toggleExpand(comp.key, !!comp.events)} className="w-full flex justify-between items-center p-2 text-left text-sm font-medium text-gray-300 hover:bg-gray-700/60"><span>{comp.name}</span><ChevronDownIcon className={`w-4 h-4 transform transition-transform duration-300 ${expanded[comp.key] ? 'rotate-180' : ''}`} /></button>{expanded[comp.key] && <div className="p-2 space-y-1">{loadingEvents[comp.key] ? <Spinner size="h-8 w-8" /> : comp.events?.length > 0 ? <ul>{comp.events.map(event => <li key={event.id}><button onClick={() => onSelectEvent(event)} className={`w-full text-left p-2 rounded-md text-xs transition-colors duration-200 ${selectedEventId === event.id ? 'bg-blue-600 text-white font-semibold' : 'text-gray-300 hover:bg-gray-700/60'}`}>{event.name}</button></li>)}</ul> : <p className="text-xs text-gray-500 p-2">No events found.</p>}</div>}</div>)}</div>}
                         </div>
                     ))}
                 </nav>
             );
         };
 
-        const FloatingScrollButton = ({ onClick }) => (
-            <button
-                onClick={onClick}
-                className="fixed bottom-6 right-6 lg:bottom-8 lg:right-8 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-3 shadow-lg transition-opacity duration-300 z-50"
-                aria-label="Scroll to top"
-            >
-                <ArrowUpIcon className="w-6 h-6" />
-            </button>
-        );
+        const FloatingScrollButton = ({ onClick }) => <button onClick={onClick} className="fixed bottom-6 right-6 lg:bottom-8 lg:right-8 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-3 shadow-lg transition-opacity duration-300 z-50" aria-label="Scroll to top"><ArrowUpIcon className="w-6 h-6" /></button>;
 
         function App() {
-          const [allCompetitions, setAllCompetitions] = useState([]);
+          const [competitions, setCompetitions] = useState([]);
           const [selectedEvent, setSelectedEvent] = useState(null);
           const [isSidebarOpen, setIsSidebarOpen] = useState(false);
           const [loading, setLoading] = useState(true);
           const [error, setError] = useState(null);
-          const [stakeFilterValue, setStakeFilterValue] = useState('');
-          const [stakeFilterType, setStakeFilterType] = useState('higher');
+          const [loadingEvents, setLoadingEvents] = useState({});
           const [showScrollButton, setShowScrollButton] = useState(false);
           const mainContentRef = useRef(null);
 
           useEffect(() => {
-            const fetchData = async () => {
+            const fetchCompetitions = async () => {
                 try {
-                    const response = await fetch('/.netlify/functions/fetch-odds');
-                    if (!response.ok) throw new Error(`Network response was not ok: ${response.statusText}`);
+                    const response = await fetch('/.netlify/functions/fetch-competitions');
+                    if (!response.ok) throw new Error(`Network error: ${response.statusText}`);
                     const data = await response.json();
-                    setAllCompetitions(data.competitions || []);
-                } catch (error) {
-                    console.error("Failed to fetch odds:", error);
-                    setError("Could not load sports data. Please try again later.");
-                } finally {
-                    setLoading(false);
-                }
+                    setCompetitions(data.competitions || []);
+                } catch (err) { setError("Could not load competitions."); } 
+                finally { setLoading(false); }
             };
-            fetchData();
+            fetchCompetitions();
           }, []);
 
-          const filteredCompetitions = useMemo(() => {
-            if (!stakeFilterValue || isNaN(parseFloat(stakeFilterValue))) return allCompetitions;
-            const filterValue = parseFloat(stakeFilterValue);
-            return allCompetitions.map(comp => {
-                const filteredEvents = comp.events.filter(event => {
-                    const matchOdds = event.markets['soccer.match_odds'];
-                    if (!matchOdds) return true;
-                    const selections = Object.values(matchOdds.submarkets)[0]?.selections;
-                    if (!selections) return true;
-                    return selections.some(sel => stakeFilterType === 'higher' ? sel.maxStake > filterValue : sel.maxStake < filterValue);
-                });
-                return { ...comp, events: filteredEvents };
-            }).filter(comp => comp.events.length > 0);
-          }, [allCompetitions, stakeFilterValue, stakeFilterType]);
+          const handleExpandCompetition = async (competitionKey) => {
+              const competition = competitions.find(c => c.key === competitionKey);
+              if (!competition || competition.events) return;
 
-          const groupedAndFilteredCompetitions = useMemo(() => {
-              return filteredCompetitions.reduce((acc, comp) => {
-                  const keyParts = comp.key.split('-');
-                  const country = keyParts.length > 1 ? keyParts[1] : 'other';
+              setLoadingEvents(prev => ({ ...prev, [competitionKey]: true }));
+              try {
+                  const response = await fetch(`/.netlify/functions/fetch-events?competitionKey=${competitionKey}`);
+                  if (!response.ok) throw new Error('Failed to fetch events');
+                  const data = await response.json();
+                  setCompetitions(prev => prev.map(c => c.key === competitionKey ? { ...c, events: data.events || [] } : c));
+              } catch (err) { console.error(`Failed to fetch events for ${competitionKey}`, err); } 
+              finally { setLoadingEvents(prev => ({ ...prev, [competitionKey]: false })); }
+          };
+
+          const groupedCompetitions = useMemo(() => {
+              return competitions.reduce((acc, comp) => {
+                  const country = comp.category.name.toLowerCase();
                   if (!acc[country]) acc[country] = {};
-                  if (!acc[country][comp.name]) acc[country][comp.name] = [];
-                  acc[country][comp.name].push(...comp.events);
+                  acc[country][comp.key] = comp;
                   return acc;
               }, {});
-          }, [filteredCompetitions]);
+          }, [competitions]);
 
-          useEffect(() => {
-              const firstCountry = Object.keys(groupedAndFilteredCompetitions)[0];
-              if (firstCountry) {
-                  const firstCompetition = Object.keys(groupedAndFilteredCompetitions[firstCountry])[0];
-                  if (firstCompetition) setSelectedEvent(groupedAndFilteredCompetitions[firstCountry][firstCompetition][0]);
-              } else {
-                  setSelectedEvent(null);
-              }
-          }, [groupedAndFilteredCompetitions]);
-
-          const handleSelectEvent = (event) => {
-            setSelectedEvent(event);
-            setIsSidebarOpen(false);
-          };
-
-          useEffect(() => {
-            if (selectedEvent && mainContentRef.current) {
-                mainContentRef.current.scrollTop = 0;
-            }
-          }, [selectedEvent]);
-
-          const handleScroll = () => {
-              if (mainContentRef.current) {
-                  setShowScrollButton(mainContentRef.current.scrollTop > 300);
-              }
-          };
-
-          const scrollToTop = () => {
-              if (mainContentRef.current) {
-                  mainContentRef.current.scrollTo({ top: 0, behavior: 'smooth' });
-              }
-          };
+          const handleSelectEvent = (event) => { setSelectedEvent(event); setIsSidebarOpen(false); };
+          useEffect(() => { if (selectedEvent && mainContentRef.current) mainContentRef.current.scrollTop = 0; }, [selectedEvent]);
+          const handleScroll = () => { if (mainContentRef.current) setShowScrollButton(mainContentRef.current.scrollTop > 300); };
+          const scrollToTop = () => { if (mainContentRef.current) mainContentRef.current.scrollTo({ top: 0, behavior: 'smooth' }); };
           
           return (
             <div className="bg-gray-900 font-sans h-screen flex flex-col lg:flex-row overflow-hidden text-white">
-              <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="lg:hidden fixed top-4 left-4 z-30 p-2 bg-blue-600 rounded-md text-white" aria-label="Toggle sidebar">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
-              </button>
+              <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="lg:hidden fixed top-4 left-4 z-30 p-2 bg-blue-600 rounded-md text-white" aria-label="Toggle sidebar"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
               <aside className={`fixed lg:relative inset-y-0 left-0 z-20 w-80 bg-gray-800/80 backdrop-blur-sm border-r border-gray-700 p-4 flex flex-col transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:flex-shrink-0`}>
                 <h1 className="text-2xl font-bold mb-4 text-white text-center">Sports Odds</h1>
-                <div className="bg-gray-900/50 rounded-lg p-3 mb-4 text-sm space-y-2">
-                    <label className="font-semibold text-gray-300 block">Filter by Max Stake:</label>
-                    <div className="flex gap-2">
-                        <select value={stakeFilterType} onChange={(e) => setStakeFilterType(e.target.value)} className="flex-1 bg-gray-700 border border-gray-600 rounded-md py-1 px-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <option value="higher">Higher Than</option>
-                            <option value="below">Below</option>
-                        </select>
-                        <input type="number" placeholder="Stake" value={stakeFilterValue} onChange={(e) => setStakeFilterValue(e.target.value)} className="flex-1 bg-gray-700 border border-gray-600 rounded-md py-1 px-2 text-white w-24 focus:outline-none focus:ring-2 focus:ring-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-                    </div>
-                </div>
                 <div className="flex-1 overflow-y-auto">
-                    {loading ? <Spinner /> : error ? <p className="text-red-400 p-4">{error}</p> : <Sidebar groupedCompetitions={groupedAndFilteredCompetitions} onSelectEvent={handleSelectEvent} selectedEventId={selectedEvent?.id} />}
+                    {loading ? <Spinner /> : error ? <p className="text-red-400 p-4">{error}</p> : <Sidebar groupedData={groupedCompetitions} onSelectEvent={handleSelectEvent} selectedEventId={selectedEvent?.id} onExpandCompetition={handleExpandCompetition} loadingEvents={loadingEvents} />}
                 </div>
               </aside>
               <main ref={mainContentRef} onScroll={handleScroll} className="flex-1 overflow-y-auto relative">
