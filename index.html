@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sports Odds Viewer</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React Libraries from CDN -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- Babel for JSX Transpilation in the browser -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        /* Basic body styling to match the app theme */
+        body {
+            background-color: #111827; /* bg-gray-900 */
+            font-family: sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <!-- The root element where the React app will be mounted -->
+    <div id="root"></div>
+
+    <!-- The entire React application code goes inside this script tag -->
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        // --- Helper Components & Hooks ---
+        const ChevronDownIcon = ({ className }) => (
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        );
+
+        const Spinner = () => (
+            <div className="flex justify-center items-center h-full w-full p-8">
+                <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
+            </div>
+        );
+
+        const usePriceChange = (price) => {
+          const [status, setStatus] = useState('stable');
+          const prevPriceRef = useRef(price);
+
+          useEffect(() => {
+            if (prevPriceRef.current !== price) {
+              setStatus(prevPriceRef.current < price ? 'increased' : 'decreased');
+              const timer = setTimeout(() => setStatus('stable'), 1200);
+              prevPriceRef.current = price;
+              return () => clearTimeout(timer);
+            }
+          }, [price]);
+
+          return status;
+        };
+
+
+        // --- Main Application Components ---
+
+        const OddsButton = ({ label, price, maxStake, probability }) => {
+            const priceStatus = usePriceChange(price);
+            const statusClasses = {
+              increased: 'bg-green-500/40 ring-2 ring-green-400',
+              decreased: 'bg-red-500/40 ring-2 ring-red-400',
+              stable: 'bg-gray-700/60'
+            };
+
+            return (
+                <button className={`flex-1 p-2 ${statusClasses[priceStatus]} hover:bg-blue-600/80 rounded-md transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-blue-400 text-center`}>
+                    <span className="block text-sm text-gray-300 font-medium">{label}</span>
+                    <span className="block text-lg font-bold text-white mt-1">{price.toFixed(3)}</span>
+                    <span className="block text-xs text-cyan-400">{(probability * 100).toFixed(1)}%</span>
+                    <span className="block text-xs text-gray-400 mt-1">${maxStake.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
+                </button>
+            );
+        };
+
+        const formatMarketTitle = (marketKey) => {
+          return marketKey.replace('soccer.', '').replace(/_/g, ' ').split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+        };
+
+        const MarketDisplay = ({ marketKey, marketData, homeTeam, awayTeam, stakeFilterValue, stakeFilterType }) => {
+            const originalSelections = Object.values(marketData.submarkets)[0]?.selections || [];
+            const selections = useMemo(() => {
+                if (!stakeFilterValue || isNaN(parseFloat(stakeFilterValue))) return originalSelections;
+                const filterNum = parseFloat(stakeFilterValue);
+                return originalSelections.filter(selection => stakeFilterType === 'higher' ? selection.maxStake > filterNum : selection.maxStake < filterNum);
+            }, [originalSelections, stakeFilterValue, stakeFilterType]);
+
+            const renderMarket = () => {
+                if (marketKey === 'soccer.match_odds') {
+                    const home = selections.find(s => s.outcome === 'home');
+                    const draw = selections.find(s => s.outcome === 'draw');
+                    const away = selections.find(s => s.outcome === 'away');
+                    if (!home && !draw && !away) return <p className="text-gray-400 text-center py-4">No odds match the current filter.</p>;
+                    return (
+                        <div className="grid grid-cols-3 gap-2">
+                            {home ? <OddsButton {...home} label={homeTeam} /> : <div/>}
+                            {draw ? <OddsButton {...draw} label="Draw" /> : <div/>}
+                            {away ? <OddsButton {...away} label={awayTeam} /> : <div/>}
+                        </div>
+                    );
+                }
+                if (marketKey.includes('total_goals')) {
+                    const groupedByTotal = selections.reduce((acc, sel) => {
+                        const total = sel.params.split('=')[1];
+                        if (!acc[total]) acc[total] = {};
+                        acc[total][sel.outcome] = sel;
+                        return acc;
+                    }, {});
+                    if (Object.keys(groupedByTotal).length === 0) return <p className="text-gray-400 text-center py-4">No odds match the current filter.</p>;
+                    return (
+                        <div className="space-y-3">
+                            {Object.entries(groupedByTotal).map(([total, outcomes]) => (
+                                <div key={total} className="flex items-center gap-2">
+                                    <div className="w-20 text-center text-gray-300 font-semibold">{total}</div>
+                                    <div className="flex-1 grid grid-cols-2 gap-2">
+                                        {outcomes.over ? <OddsButton {...outcomes.over} label="Over" /> : <div/>}
+                                        {outcomes.under ? <OddsButton {...outcomes.under} label="Under" /> : <div/>}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    );
+                }
+                return <p>Unsupported market type.</p>;
+            };
+            return (
+                <div className="bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+                    <h3 className="text-lg font-semibold p-3 bg-gray-700/50 border-b border-gray-600">{formatMarketTitle(marketKey)}</h3>
+                    <div className="p-4">{renderMarket()}</div>
+                </div>
+            );
+        };
+
+        const EventDetails = ({ event }) => {
+          const [stakeFilterValue, setStakeFilterValue] = useState('');
+          const [stakeFilterType, setStakeFilterType] = useState('higher');
+          const markets = useMemo(() => event ? Object.entries(event.markets || {}) : [], [event]);
+
+          if (!event) {
+            return (
+              <div className="flex items-center justify-center h-full text-gray-400 p-4 text-center">
+                <p className="text-xl">Select an event from the sidebar to see the odds.</p>
+              </div>
+            );
+          }
+          return (
+            <div className="p-4 sm:p-6 lg:p-8 text-white space-y-6">
+              <h2 className="text-3xl font-bold text-center mb-4">{event.name}</h2>
+              <div className="bg-gray-800 rounded-lg p-3 flex flex-wrap items-center justify-center gap-3 text-sm">
+                <span className="font-semibold text-gray-300">Filter by Max Stake:</span>
+                <select value={stakeFilterType} onChange={(e) => setStakeFilterType(e.target.value)} className="bg-gray-700 border border-gray-600 rounded-md py-1 px-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="higher">Higher Than</option>
+                  <option value="below">Below</option>
+                </select>
+                <input type="number" placeholder="Enter stake amount" value={stakeFilterValue} onChange={(e) => setStakeFilterValue(e.target.value)} className="bg-gray-700 border border-gray-600 rounded-md py-1 px-2 text-white w-40 focus:outline-none focus:ring-2 focus:ring-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+              </div>
+              {markets.length > 0 ? (
+                markets.map(([marketKey, marketData]) => <MarketDisplay key={marketKey} marketKey={marketKey} marketData={marketData} homeTeam={event.home.name} awayTeam={event.away.name} stakeFilterValue={stakeFilterValue} stakeFilterType={stakeFilterType} />)
+              ) : (
+                <p className="text-center text-gray-400 bg-gray-800 p-6 rounded-lg">No market data available for this event.</p>
+              )}
+            </div>
+          );
+        };
+
+        const Sidebar = ({ competitions, onSelectEvent, selectedEventId }) => {
+          const [expanded, setExpanded] = useState({});
+          useEffect(() => {
+            if (competitions && competitions.length > 0) setExpanded(prev => ({ ...prev, [competitions[0].key]: true }));
+          }, [competitions]);
+          const toggleCompetition = (key) => setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
+          if (!competitions) return <p className="text-gray-400 p-4">No competitions available.</p>;
+          return (
+            <nav className="space-y-2">
+              {competitions.map(comp => (
+                <div key={comp.key} className="bg-gray-800 rounded-lg overflow-hidden">
+                  <button onClick={() => toggleCompetition(comp.key)} className="w-full flex justify-between items-center p-3 text-left font-semibold text-white bg-gray-700/50 hover:bg-gray-700 transition-colors duration-200">
+                    <span>{comp.name}</span>
+                    <ChevronDownIcon className={`w-5 h-5 transform transition-transform duration-300 ${expanded[comp.key] ? 'rotate-180' : ''}`} />
+                  </button>
+                  {expanded[comp.key] && (
+                    <ul className="p-2 space-y-1">
+                      {comp.events.map(event => (
+                        <li key={event.id}>
+                          <button onClick={() => onSelectEvent(event)} className={`w-full text-left p-2 rounded-md text-sm transition-colors duration-200 ${selectedEventId === event.id ? 'bg-blue-600 text-white font-semibold' : 'text-gray-300 hover:bg-gray-700/60'}`}>
+                            {event.name}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ))}
+            </nav>
+          );
+        };
+
+        function App() {
+          const [competitions, setCompetitions] = useState([]);
+          const [selectedEvent, setSelectedEvent] = useState(null);
+          const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+          const [loading, setLoading] = useState(true);
+          const [error, setError] = useState(null);
+
+          // Effect to fetch live data from our Netlify function
+          useEffect(() => {
+            const fetchData = async () => {
+                try {
+                    // This path points to our serverless function
+                    const response = await fetch('/.netlify/functions/fetch-odds');
+                    if (!response.ok) {
+                        throw new Error(`Network response was not ok: ${response.statusText}`);
+                    }
+                    const data = await response.json();
+                    setCompetitions(data.competitions || []);
+                    if(data.competitions && data.competitions.length > 0 && data.competitions[0].events.length > 0) {
+                        setSelectedEvent(data.competitions[0].events[0]);
+                    }
+                } catch (error) {
+                    console.error("Failed to fetch odds:", error);
+                    setError("Could not load sports data. Please try again later.");
+                } finally {
+                    setLoading(false);
+                }
+            };
+            fetchData();
+          }, []);
+
+          // Live simulation is removed as we will rely on fetching fresh data.
+          // For a true live app, you would use WebSockets or periodic re-fetching.
+
+          const handleSelectEvent = (event) => {
+            setSelectedEvent(event);
+            setIsSidebarOpen(false);
+          };
+          
+          return (
+            <div className="bg-gray-900 font-sans min-h-screen flex text-white">
+              <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="lg:hidden fixed top-4 left-4 z-30 p-2 bg-blue-600 rounded-md text-white" aria-label="Toggle sidebar">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+              </button>
+              <aside className={`fixed lg:relative inset-y-0 left-0 z-20 w-80 bg-gray-800/80 backdrop-blur-sm border-r border-gray-700 p-4 transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:flex-shrink-0`}>
+                <h1 className="text-2xl font-bold mb-6 text-white text-center">Sports Odds</h1>
+                {loading ? <Spinner /> : error ? <p className="text-red-400 p-4">{error}</p> : <Sidebar competitions={competitions} onSelectEvent={handleSelectEvent} selectedEventId={selectedEvent?.id} />}
+              </aside>
+              <main className="flex-1 overflow-y-auto">
+                {loading ? <Spinner /> : <EventDetails event={selectedEvent} />}
+              </main>
+            </div>
+          );
+        }
+        
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot(container);
+        root.render(<App />);
+    </script>
+</body>
+</html>
