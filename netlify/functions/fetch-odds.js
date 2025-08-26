@@ -17,7 +17,7 @@ exports.handler = async (event, context) => {
   const sevenDaysFromNow = now + 7 * 24 * 60 * 60;
 
   // Construct the API URL with dynamic timestamps
-  const apiUrl = `https://sports-api.cloudbet.com/pub/v2/odds/events?sport=soccer&from=${now}&to=${sevenDaysFromNow}&live=false&markets=soccer.match_odds&markets=soccer.total_goals&markets=soccer.total_goals_period_first_half&players=false&limit=100`;
+  const apiUrl = `https://sports-api.cloudbet.com/pub/v2/odds/events?sport=soccer&from=${now}&to=${sevenDaysFromNow}&live=false&markets=soccer.match_odds&markets=soccer.total_goals&markets=soccer.total_goals_period_first_half&players=false&limit=1000`;
 
   try {
     const response = await fetch(apiUrl, {
