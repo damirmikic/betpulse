@@ -33,6 +33,14 @@
             </div>
         );
 
+        const formatDate = (isoString) => {
+            if (!isoString) return 'N/A';
+            return new Date(isoString).toLocaleString(undefined, {
+                dateStyle: 'medium',
+                timeStyle: 'short'
+            });
+        };
+
         // --- Main Application Components ---
 
         const OddsButton = ({ label, price, maxStake, probability }) => {
@@ -51,7 +59,7 @@
         };
 
         const MarketDisplay = ({ marketKey, marketData, homeTeam, awayTeam }) => {
-            const [isExpanded, setIsExpanded] = useState(true); // Default to expanded
+            const [isExpanded, setIsExpanded] = useState(true);
             const selections = Object.values(marketData.submarkets)[0]?.selections || [];
 
             const renderMarket = () => {
@@ -105,8 +113,89 @@
             );
         };
 
+        const LambdaGoalsDisplay = ({ markets, homeTeam, awayTeam }) => {
+            const lambdaData = useMemo(() => {
+                const matchOddsMarket = markets['soccer.match_odds'];
+                const totalGoalsMarket = markets['soccer.total_goals'];
+
+                if (!matchOddsMarket || !totalGoalsMarket) return null;
+
+                const matchSelections = Object.values(matchOddsMarket.submarkets)[0]?.selections;
+                const totalSelections = Object.values(totalGoalsMarket.submarkets)[0]?.selections;
+
+                if (!matchSelections || !totalSelections) return null;
+
+                // 1. Find total goals line where odds are closest (best estimate for lambda_total)
+                let closestPair = null;
+                let minDiff = Infinity;
+                const totals = {};
+                totalSelections.forEach(s => {
+                    const totalVal = s.params.split('=')[1];
+                    if (!totals[totalVal]) totals[totalVal] = {};
+                    totals[totalVal][s.outcome] = s.price;
+                });
+
+                for (const total in totals) {
+                    if (totals[total].over && totals[total].under) {
+                        const diff = Math.abs(totals[total].over - totals[total].under);
+                        if (diff < minDiff) {
+                            minDiff = diff;
+                            closestPair = total;
+                        }
+                    }
+                }
+                const lambdaTotal = parseFloat(closestPair) || 2.5; // Fallback to 2.5
+
+                // 2. Calculate true probabilities for match odds (remove vig)
+                const homeSel = matchSelections.find(s => s.outcome === 'home');
+                const drawSel = matchSelections.find(s => s.outcome === 'draw');
+                const awaySel = matchSelections.find(s => s.outcome === 'away');
+
+                if (!homeSel || !awaySel) return null;
+
+                const probHome = 1 / homeSel.price;
+                const probAway = 1 / awaySel.price;
+                const probDraw = 1 / drawSel.price;
+                const totalProb = probHome + probAway + probDraw;
+
+                const trueProbHome = probHome / totalProb;
+                const trueProbAway = probAway / totalProb;
+
+                // 3. Apportion total lambda based on win probabilities
+                const lambdaHome = lambdaTotal * (trueProbHome / (trueProbHome + trueProbAway));
+                const lambdaAway = lambdaTotal * (trueProbAway / (trueProbHome + trueProbAway));
+
+                return { lambdaHome, lambdaAway, lambdaTotal };
+            }, [markets]);
+
+            if (!lambdaData) {
+                return null; // Don't render if data is insufficient
+            }
+
+            return (
+                <div className="bg-gray-800 rounded-lg shadow-lg p-4">
+                    <h3 className="text-lg font-semibold text-white mb-3 text-center">Expected Goals (Lambda)</h3>
+                    <div className="flex justify-around text-center">
+                        <div>
+                            <div className="text-sm text-gray-400">{homeTeam}</div>
+                            <div className="text-2xl font-bold text-cyan-400">{lambdaData.lambdaHome.toFixed(2)}</div>
+                        </div>
+                        <div>
+                            <div className="text-sm text-gray-400">Total Match</div>
+                            <div className="text-2xl font-bold text-white">{lambdaData.lambdaTotal.toFixed(2)}</div>
+                        </div>
+                        <div>
+                            <div className="text-sm text-gray-400">{awayTeam}</div>
+                            <div className="text-2xl font-bold text-cyan-400">{lambdaData.lambdaAway.toFixed(2)}</div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+
         const EventDetails = ({ event }) => {
-          const markets = useMemo(() => event ? Object.entries(event.markets || {}) : [], [event]);
+          const markets = useMemo(() => event ? event.markets || {} : {}, [event]);
           if (!event) {
             return (
               <div className="flex items-center justify-center h-full text-gray-400 p-4 text-center">
@@ -115,10 +204,16 @@
             );
           }
           return (
-            <div className="p-4 sm:p-6 lg:p-8 text-white space-y-6">
-              <h2 className="text-3xl font-bold text-center mb-4">{event.name}</h2>
-              {markets.length > 0 ? (
-                markets.map(([marketKey, marketData]) => <MarketDisplay key={marketKey} marketKey={marketKey} marketData={marketData} homeTeam={event.home.name} awayTeam={event.away.name} />)
+            <div className="max-w-4xl mx-auto p-4 space-y-4">
+              <div className="text-center">
+                <h2 className="text-2xl sm:text-3xl font-bold text-white">{event.name}</h2>
+                <p className="text-sm text-gray-400 mt-1">{formatDate(event.cutoffTime)}</p>
+              </div>
+
+              <LambdaGoalsDisplay markets={markets} homeTeam={event.home.name} awayTeam={event.away.name} />
+
+              {Object.keys(markets).length > 0 ? (
+                Object.entries(markets).map(([marketKey, marketData]) => <MarketDisplay key={marketKey} marketKey={marketKey} marketData={marketData} homeTeam={event.home.name} awayTeam={event.away.name} />)
               ) : (
                 <p className="text-center text-gray-400 bg-gray-800 p-6 rounded-lg">No market data available for this event.</p>
               )}
@@ -133,7 +228,6 @@
                 setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
             };
 
-            // Automatically expand the first country and first competition
             useEffect(() => {
                 if (groupedCompetitions && Object.keys(groupedCompetitions).length > 0) {
                     const firstCountry = Object.keys(groupedCompetitions)[0];
@@ -229,19 +323,12 @@
             }).filter(comp => comp.events.length > 0);
           }, [allCompetitions, stakeFilterValue, stakeFilterType]);
 
-          // --- NEW: Group competitions by country ---
           const groupedAndFilteredCompetitions = useMemo(() => {
               return filteredCompetitions.reduce((acc, comp) => {
-                  // Infer country from the competition key, e.g., "soccer-england-premier-league"
                   const keyParts = comp.key.split('-');
                   const country = keyParts.length > 1 ? keyParts[1] : 'other';
-                  
-                  if (!acc[country]) {
-                      acc[country] = {};
-                  }
-                  if (!acc[country][comp.name]) {
-                      acc[country][comp.name] = [];
-                  }
+                  if (!acc[country]) acc[country] = {};
+                  if (!acc[country][comp.name]) acc[country][comp.name] = [];
                   acc[country][comp.name].push(...comp.events);
                   return acc;
               }, {});
