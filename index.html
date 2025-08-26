@@ -220,7 +220,8 @@
 
           const groupedCompetitions = useMemo(() => {
               return competitions.reduce((acc, comp) => {
-                  const country = comp.category.name.toLowerCase();
+                  // --- FIX: Safely access category name and provide a fallback ---
+                  const country = comp.category?.name?.toLowerCase() || 'other';
                   if (!acc[country]) acc[country] = {};
                   acc[country][comp.key] = comp;
                   return acc;
