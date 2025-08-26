@@ -1,9 +1,9 @@
-// This is your serverless function that will run on Netlify.
-// It securely fetches data from the Cloudbet API.
+// This function fetches the events (matches) for a specific competition key.
+// Save this as 'fetch-events.js' in your 'netlify/functions' directory.
 
-exports.handler = async (event, context) => {
-  // Get the API key from environment variables for security
+exports.handler = async (event) => {
   const apiKey = process.env.CLOUDBET_API_KEY;
+  const { competitionKey } = event.queryStringParameters;
 
   if (!apiKey) {
     return {
@@ -12,12 +12,14 @@ exports.handler = async (event, context) => {
     };
   }
 
-  // Calculate timestamps for 'now' and '7 days from now'
-  const now = Math.floor(Date.now() / 1000);
-  const sevenDaysFromNow = now + 7 * 24 * 60 * 60;
+  if (!competitionKey) {
+    return {
+      statusCode: 400,
+      body: JSON.stringify({ error: "Missing 'competitionKey' parameter." }),
+    };
+  }
 
-  // Construct the API URL with dynamic timestamps
-  const apiUrl = `https://sports-api.cloudbet.com/pub/v2/odds/events?sport=soccer&from=${now}&to=${sevenDaysFromNow}&live=false&markets=soccer.match_odds&markets=soccer.total_goals&markets=soccer.total_goals_period_first_half&players=false&limit=1000`;
+  const apiUrl = `https://sports-api.cloudbet.com/pub/v2/odds/competitions/${competitionKey}?players=false&limit=100`;
 
   try {
     const response = await fetch(apiUrl, {
@@ -28,7 +30,6 @@ exports.handler = async (event, context) => {
     });
 
     if (!response.ok) {
-      // If the API returns an error, forward it
       return {
         statusCode: response.status,
         body: JSON.stringify({ error: `API error: ${response.statusText}` }),
@@ -37,12 +38,9 @@ exports.handler = async (event, context) => {
 
     const data = await response.json();
 
-    // Success! Return the data to the frontend
     return {
       statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     };
   } catch (error) {
