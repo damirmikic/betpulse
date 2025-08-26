@@ -49,7 +49,7 @@
 
         // --- Poisson Calculation Logic (based on provided VBA) ---
         const factorial = (n) => {
-            if (n > 170) return Infinity; // Prevent overflow for large numbers
+            if (n > 170) return Infinity;
             if (n === 0 || n === 1) return 1;
             let result = 1;
             for (let i = 2; i <= n; i++) {
@@ -59,13 +59,14 @@
         };
 
         const poisson = (mu, x) => {
+            if (mu < 0) return 0;
             return (Math.pow(mu, x) * Math.exp(-mu)) / factorial(x);
         };
 
         const homeAndUnderProbs = (homeExpectedGoals, awayExpectedGoals, goalLine) => {
             let home = 0, away = 0, under = 0, over = 0;
-            for (let i = 0; i <= 20; i++) {
-                for (let j = 0; j <= 20; j++) {
+            for (let i = 0; i <= 10; i++) { // Reduced loop for performance
+                for (let j = 0; j <= 10; j++) {
                     const prob = poisson(homeExpectedGoals, i) * poisson(awayExpectedGoals, j);
                     if (i > j) home += prob;
                     else if (j > i) away += prob;
@@ -78,52 +79,42 @@
             return [homeNorm, underNorm];
         };
 
-        const calculateExpectedGoals = (overPrice, underPrice, homePrice, awayPrice, drawPrice) => {
-            let totalGoals = 2.5;
-            let supremacy = 0;
-            const goalLine = 2.5;
-
+        const calculateExpectedGoals = (overPrice, underPrice, homePrice, awayPrice, drawPrice, goalLine) => {
             const normalisedUnder = (1 / underPrice) / ((1 / overPrice) + (1 / underPrice));
-            // --- FIX: Use 2-way normalization for home win probability to match the model's output ---
             const normalisedHome = (1 / homePrice) / ((1 / homePrice) + (1 / awayPrice));
 
-            // Iteratively find totalGoals
-            let increment = (homeAndUnderProbs(totalGoals / 2, totalGoals / 2, goalLine)[1] > normalisedUnder) ? -0.05 : 0.05;
-            let error = 1, previousError = 2;
-            let iterations = 0;
-            while (error < previousError && iterations < 100) {
-                totalGoals += increment;
-                let homeExpected = totalGoals / 2 + supremacy / 2;
-                let awayExpected = totalGoals / 2 - supremacy / 2;
-                if (homeExpected < 0 || awayExpected < 0) { totalGoals -= increment; break; }
-                previousError = error;
-                error = Math.abs(homeAndUnderProbs(homeExpected, awayExpected, goalLine)[1] - normalisedUnder);
-                iterations++;
+            // Step 1: Find the best totalGoals value by minimizing error
+            let bestTotalGoals = 0;
+            let minError = Infinity;
+            for (let tg = 1.0; tg <= 5.0; tg += 0.01) {
+                const currentError = Math.abs(homeAndUnderProbs(tg / 2, tg / 2, goalLine)[1] - normalisedUnder);
+                if (currentError < minError) {
+                    minError = currentError;
+                    bestTotalGoals = tg;
+                }
             }
-            totalGoals -= increment;
-
-            // Iteratively find supremacy
-            increment = (homeAndUnderProbs(totalGoals / 2, totalGoals / 2, goalLine)[0] > normalisedHome) ? -0.05 : 0.05;
-            error = 1; previousError = 2;
-            iterations = 0;
-            while (error < previousError && iterations < 100) {
-                supremacy += increment;
-                let homeExpected = totalGoals / 2 + supremacy / 2;
-                let awayExpected = totalGoals / 2 - supremacy / 2;
-                if (homeExpected < 0 || awayExpected < 0) { supremacy -= increment; break; }
-                previousError = error;
-                error = Math.abs(homeAndUnderProbs(homeExpected, awayExpected, goalLine)[0] - normalisedHome);
-                iterations++;
+            
+            // Step 2: Using the best totalGoals, find the best supremacy value
+            let bestSupremacy = 0;
+            minError = Infinity;
+            for (let sup = -2.0; sup <= 2.0; sup += 0.01) {
+                let homeExpected = bestTotalGoals / 2 + sup / 2;
+                let awayExpected = bestTotalGoals / 2 - sup / 2;
+                if (homeExpected < 0 || awayExpected < 0) continue;
+                const currentError = Math.abs(homeAndUnderProbs(homeExpected, awayExpected, goalLine)[0] - normalisedHome);
+                if (currentError < minError) {
+                    minError = currentError;
+                    bestSupremacy = sup;
+                }
             }
-            supremacy -= increment;
 
-            const homeExpectedGoals = totalGoals / 2 + supremacy / 2;
-            const awayExpectedGoals = totalGoals / 2 - supremacy / 2;
+            const homeExpectedGoals = bestTotalGoals / 2 + bestSupremacy / 2;
+            const awayExpectedGoals = bestTotalGoals / 2 - bestSupremacy / 2;
 
             return {
                 lambdaHome: homeExpectedGoals,
                 lambdaAway: awayExpectedGoals,
-                lambdaTotal: totalGoals
+                lambdaTotal: bestTotalGoals
             };
         };
 
@@ -215,12 +206,33 @@
                     const drawSel = matchSelections.find(s => s.outcome === 'draw');
                     const awaySel = matchSelections.find(s => s.outcome === 'away');
                     
-                    const over25 = totalSelections.find(s => s.params === 'total=2.5' && s.outcome === 'over');
-                    const under25 = totalSelections.find(s => s.params === 'total=2.5' && s.outcome === 'under');
+                    // --- NEW: Dynamic Goal Line Logic ---
+                    let mainGoalLineData = null;
+                    let minDiff = Infinity;
+                    const totals = {};
+                    totalSelections.forEach(s => {
+                        const totalVal = s.params.split('=')[1];
+                        if (!totals[totalVal]) totals[totalVal] = {};
+                        totals[totalVal][s.outcome] = s.price;
+                    });
 
-                    if (!homeSel || !drawSel || !awaySel || !over25 || !under25) return null;
+                    for (const total in totals) {
+                        if (totals[total].over && totals[total].under) {
+                            const diff = Math.abs(totals[total].over - totals[total].under);
+                            if (diff < minDiff) {
+                                minDiff = diff;
+                                mainGoalLineData = {
+                                    goalLine: parseFloat(total),
+                                    overPrice: totals[total].over,
+                                    underPrice: totals[total].under
+                                };
+                            }
+                        }
+                    }
+
+                    if (!homeSel || !drawSel || !awaySel || !mainGoalLineData) return null;
                     
-                    return calculateExpectedGoals(over25.price, under25.price, homeSel.price, awaySel.price, drawSel.price);
+                    return calculateExpectedGoals(mainGoalLineData.overPrice, mainGoalLineData.underPrice, homeSel.price, awaySel.price, drawSel.price, mainGoalLineData.goalLine);
                 } catch (error) {
                     console.error("Error calculating lambda goals:", error);
                     return null;
