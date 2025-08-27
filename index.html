@@ -197,8 +197,23 @@
                     const response = await fetch('/.netlify/functions/fetch-competitions');
                     if (!response.ok) throw new Error(`Network error: ${response.statusText}`);
                     const data = await response.json();
-                    setCompetitions(data.competitions || []);
-                } catch (err) { setError("Could not load competitions."); } 
+                    
+                    // --- FIX: Transform the nested API data into a flat structure ---
+                    if (data && data.categories) {
+                        const flattenedCompetitions = data.categories.flatMap(category =>
+                            category.competitions.map(comp => ({
+                                ...comp,
+                                category: { name: category.name, key: category.key }
+                            }))
+                        );
+                        setCompetitions(flattenedCompetitions);
+                    } else {
+                        setCompetitions([]);
+                    }
+                } catch (err) { 
+                    setError("Could not load competitions."); 
+                    console.error(err);
+                } 
                 finally { setLoading(false); }
             };
             fetchCompetitions();
@@ -220,7 +235,6 @@
 
           const groupedCompetitions = useMemo(() => {
               return competitions.reduce((acc, comp) => {
-                  // --- FIX: Safely access category name and provide a fallback ---
                   const country = comp.category?.name?.toLowerCase() || 'other';
                   if (!acc[country]) acc[country] = {};
                   acc[country][comp.key] = comp;
