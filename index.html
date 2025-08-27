@@ -34,7 +34,7 @@
         );
 
         const ChartIcon = ({ className }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
                 <path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/>
             </svg>
         );
@@ -211,9 +211,8 @@
           return <div className="max-w-4xl mx-auto p-4 space-y-4"><div className="text-center"><h2 className="text-2xl sm:text-3xl font-bold text-white">{event.name}</h2><p className="text-sm text-gray-400 mt-1">{formatDate(event.cutoffTime)}</p></div><LambdaGoalsDisplay markets={event.markets || {}} homeTeam={event.home.name} awayTeam={event.away.name} />{markets.length > 0 ? markets.map(([key, data]) => <MarketDisplay key={key} marketKey={key} marketData={data} homeTeam={event.home.name} awayTeam={event.away.name} onChartOpen={onChartOpen} eventId={event.id} />) : <p className="text-center text-gray-400 bg-gray-800 p-6 rounded-lg">No supported market data available.</p>}</div>;
         };
 
-        const Sidebar = ({ groupedData, onSelectEvent, selectedEventId, onExpandCompetition, loadingEvents }) => {
-            const [expanded, setExpanded] = useState({});
-            const toggleExpand = (key, hasEvents) => { if (!hasEvents) onExpandCompetition(key); setExpanded(prev => ({ ...prev, [key]: !prev[key] })); };
+        const Sidebar = ({ groupedData, onSelectEvent, selectedEventId, onExpandCompetition, loadingEvents, expanded }) => {
+            const toggleExpand = (key, hasEvents) => { if (!hasEvents) onExpandCompetition(key); onExpandCompetition(key, !expanded[key]); };
             if (!groupedData || Object.keys(groupedData).length === 0) return <p className="text-gray-400 p-4">No competitions found.</p>;
             return <nav className="space-y-1">{Object.entries(groupedData).map(([country, competitions]) => <div key={country} className="bg-gray-800/50 rounded-lg overflow-hidden"><button onClick={() => toggleExpand(country)} className="w-full flex justify-between items-center p-3 text-left font-semibold text-white bg-gray-700/30 hover:bg-gray-700/60"><span className="capitalize">{country}</span><ChevronDownIcon className={`w-5 h-5 transform transition-transform duration-300 ${expanded[country] ? 'rotate-180' : ''}`} /></button>{expanded[country] && <div className="pl-2 pr-1 py-1">{Object.values(competitions).map(comp => <div key={comp.key} className="bg-gray-800 rounded-md overflow-hidden"><button onClick={() => toggleExpand(comp.key, !!comp.events)} className="w-full flex justify-between items-center p-2 text-left text-sm font-medium text-gray-300 hover:bg-gray-700/60"><span>{comp.name}</span><ChevronDownIcon className={`w-4 h-4 transform transition-transform duration-300 ${expanded[comp.key] ? 'rotate-180' : ''}`} /></button>{expanded[comp.key] && <div className="p-2 space-y-1">{loadingEvents[comp.key] ? <Spinner size="h-8 w-8" /> : comp.events?.length > 0 ? <ul>{comp.events.map(event => <li key={event.id}><button onClick={() => onSelectEvent(event)} className={`w-full text-left p-2 rounded-md text-xs transition-colors duration-200 ${selectedEventId === event.id ? 'bg-blue-600 text-white font-semibold' : 'text-gray-300 hover:bg-gray-700/60'}`}>{event.name}</button></li>)}</ul> : <p className="text-xs text-gray-500 p-2">No events found.</p>}</div>}</div>)}</div>}</div>)}</nav>;
         };
@@ -224,27 +223,12 @@
             if (!chartData || chartData.history.length < 2) return null;
             const { title, history } = chartData;
             const width = 500, height = 300, padding = 40;
-            const prices = history.map(p => p.price);
-            const times = history.map(p => p.time);
+            const prices = history.map(p => p.price), times = history.map(p => p.time);
             const minPrice = Math.min(...prices), maxPrice = Math.max(...prices);
             const minTime = Math.min(...times), maxTime = Math.max(...times);
             const mapRange = (val, inMin, inMax, outMin, outMax) => outMin + (outMax - outMin) * (val - inMin) / (inMax - inMin);
             const points = history.map(p => `${mapRange(p.time, minTime, maxTime, padding, width - padding)},${mapRange(p.price, minPrice, maxPrice, height - padding, padding)}`).join(' ');
-
-            return (
-                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
-                    <div className="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-xl" onClick={e => e.stopPropagation()}>
-                        <h3 className="text-xl font-bold text-white mb-4">{title}</h3>
-                        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto bg-gray-900 rounded">
-                            <polyline fill="none" stroke="#38bdf8" strokeWidth="2" points={points} />
-                            <text x={padding} y={padding - 10} fill="#a0aec0" fontSize="12">{maxPrice.toFixed(2)}</text>
-                            <text x={padding} y={height - padding + 15} fill="#a0aec0" fontSize="12">{minPrice.toFixed(2)}</text>
-                            <text x={padding} y={height - 5} fill="#a0aec0" fontSize="12">{new Date(minTime).toLocaleTimeString()}</text>
-                            <text x={width - padding} y={height - 5} fill="#a0aec0" fontSize="12" textAnchor="end">{new Date(maxTime).toLocaleTimeString()}</text>
-                        </svg>
-                    </div>
-                </div>
-            );
+            return <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}><div className="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-xl" onClick={e => e.stopPropagation()}><h3 className="text-xl font-bold text-white mb-4">{title}</h3><svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto bg-gray-900 rounded"><polyline fill="none" stroke="#38bdf8" strokeWidth="2" points={points} /><text x={padding} y={padding - 10} fill="#a0aec0" fontSize="12">{maxPrice.toFixed(2)}</text><text x={padding} y={height - padding + 15} fill="#a0aec0" fontSize="12">{minPrice.toFixed(2)}</text><text x={padding} y={height - 5} fill="#a0aec0" fontSize="12">{new Date(minTime).toLocaleTimeString()}</text><text x={width - padding} y={height - 5} fill="#a0aec0" fontSize="12" textAnchor="end">{new Date(maxTime).toLocaleTimeString()}</text></svg></div></div>;
         };
 
         function App() {
@@ -257,6 +241,7 @@
           const [showScrollButton, setShowScrollButton] = useState(false);
           const [oddsHistory, setOddsHistory] = useState({});
           const [chartData, setChartData] = useState(null);
+          const [expanded, setExpanded] = useState({});
           const mainContentRef = useRef(null);
 
           useEffect(() => {
@@ -298,20 +283,55 @@
               });
           };
 
-          const handleExpandCompetition = async (competitionKey) => {
-              const competition = competitions.find(c => c.key === competitionKey);
-              if (!competition || competition.events) return;
-              setLoadingEvents(prev => ({ ...prev, [competitionKey]: true }));
-              try {
-                  const response = await fetch(`/.netlify/functions/fetch-events?competitionKey=${competitionKey}`);
-                  if (!response.ok) throw new Error('Failed to fetch events');
-                  const data = await response.json();
-                  const tradingEvents = (data.events || []).filter(event => event.status === 'TRADING');
-                  updateOddsHistory(tradingEvents);
-                  setCompetitions(prev => prev.map(c => c.key === competitionKey ? { ...c, events: tradingEvents } : c));
-              } catch (err) { console.error(`Failed to fetch events for ${competitionKey}`, err); } 
-              finally { setLoadingEvents(prev => ({ ...prev, [competitionKey]: false })); }
+          const handleExpandCompetition = async (key, isExpanding) => {
+              setExpanded(prev => ({ ...prev, [key]: isExpanding }));
+              const competition = competitions.find(c => c.key === key);
+              if (isExpanding && competition && !competition.events) {
+                  setLoadingEvents(prev => ({ ...prev, [key]: true }));
+                  try {
+                      const response = await fetch(`/.netlify/functions/fetch-events?competitionKey=${key}`);
+                      if (!response.ok) throw new Error('Failed to fetch events');
+                      const data = await response.json();
+                      const tradingEvents = (data.events || []).filter(event => event.status === 'TRADING');
+                      updateOddsHistory(tradingEvents);
+                      setCompetitions(prev => prev.map(c => c.key === key ? { ...c, events: tradingEvents } : c));
+                  } catch (err) { console.error(`Failed to fetch events for ${key}`, err); } 
+                  finally { setLoadingEvents(prev => ({ ...prev, [key]: false })); }
+              }
           };
+
+          // --- NEW: Auto-refresh expanded competitions ---
+          useEffect(() => {
+              const interval = setInterval(async () => {
+                  const expandedKeys = Object.keys(expanded).filter(key => expanded[key] && key.startsWith('soccer-'));
+                  if (expandedKeys.length === 0) return;
+
+                  const updates = await Promise.all(expandedKeys.map(async key => {
+                      try {
+                          const response = await fetch(`/.netlify/functions/fetch-events?competitionKey=${key}`);
+                          if (!response.ok) return null;
+                          const data = await response.json();
+                          const tradingEvents = (data.events || []).filter(event => event.status === 'TRADING');
+                          return { key, events: tradingEvents };
+                      } catch (err) {
+                          console.error(`Failed to auto-refresh ${key}`, err);
+                          return null;
+                      }
+                  }));
+
+                  const validUpdates = updates.filter(Boolean);
+                  if (validUpdates.length > 0) {
+                      updateOddsHistory(validUpdates.flatMap(u => u.events));
+                      setCompetitions(prev => prev.map(c => {
+                          const update = validUpdates.find(u => u.key === c.key);
+                          return update ? { ...c, events: update.events } : c;
+                      }));
+                  }
+              }, 60000); // 60 seconds
+
+              return () => clearInterval(interval);
+          }, [expanded, competitions]);
+
 
           const groupedCompetitions = useMemo(() => competitions.reduce((acc, comp) => { const country = comp.category?.name?.toLowerCase() || 'other'; if (!acc[country]) acc[country] = {}; acc[country][comp.key] = comp; return acc; }, {}), [competitions]);
           const handleSelectEvent = (event) => { setSelectedEvent(event); setIsSidebarOpen(false); };
@@ -326,7 +346,7 @@
               <aside className={`fixed lg:relative inset-y-0 left-0 z-20 w-80 bg-gray-800/80 backdrop-blur-sm border-r border-gray-700 p-4 flex flex-col transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:flex-shrink-0`}>
                 <h1 className="text-2xl font-bold mb-4 text-white text-center">Sports Odds</h1>
                 <div className="flex-1 overflow-y-auto">
-                    {loading ? <Spinner /> : error ? <p className="text-red-400 p-4">{error}</p> : <Sidebar groupedData={groupedCompetitions} onSelectEvent={handleSelectEvent} selectedEventId={selectedEvent?.id} onExpandCompetition={handleExpandCompetition} loadingEvents={loadingEvents} />}
+                    {loading ? <Spinner /> : error ? <p className="text-red-400 p-4">{error}</p> : <Sidebar groupedData={groupedCompetitions} onSelectEvent={handleSelectEvent} selectedEventId={selectedEvent?.id} onExpandCompetition={handleExpandCompetition} loadingEvents={loadingEvents} expanded={expanded} />}
                 </div>
               </aside>
               <main ref={mainContentRef} onScroll={handleScroll} className="flex-1 overflow-y-auto relative">
