@@ -102,9 +102,11 @@
 
         const MarketDisplay = ({ marketKey, marketData, homeTeam, awayTeam }) => {
             const [isExpanded, setIsExpanded] = useState(true);
-            const selections = Object.values(marketData.submarkets)[0]?.selections || [];
-
+            
             const renderMarket = () => {
+                const selections = Object.values(marketData.submarkets).flatMap(sub => sub.selections);
+                if (!selections || selections.length === 0) return null;
+
                 if (marketKey === 'soccer.match_odds') {
                     const home = selections.find(s => s.outcome === 'home'), draw = selections.find(s => s.outcome === 'draw'), away = selections.find(s => s.outcome === 'away');
                     return <div className="grid grid-cols-3 gap-2">{home && <OddsButton {...home} label={homeTeam} />}{draw && <OddsButton {...draw} label="Draw" />}{away && <OddsButton {...away} label={awayTeam} />}</div>;
