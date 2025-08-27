@@ -244,21 +244,28 @@
           const [expanded, setExpanded] = useState({});
           const mainContentRef = useRef(null);
 
-          useEffect(() => {
-            const fetchCompetitions = async () => {
-                try {
-                    const response = await fetch('/.netlify/functions/fetch-competitions');
-                    if (!response.ok) throw new Error(`Network error: ${response.statusText}`);
-                    const data = await response.json();
-                    if (data && data.categories) {
-                        const flattened = data.categories.flatMap(cat => cat.competitions.map(comp => ({ ...comp, category: { name: cat.name, key: cat.key } })));
-                        setCompetitions(flattened);
-                    } else { setCompetitions([]); }
-                } catch (err) { setError("Could not load competitions."); console.error(err); } 
-                finally { setLoading(false); }
-            };
-            fetchCompetitions();
-          }, []);
+          const updateOddsHistory = (events) => {
+              const now = Date.now();
+              setOddsHistory(prevHistory => {
+                  const newHistory = { ...prevHistory };
+                  for (const event of events) {
+                      if (!event.markets) continue;
+                      for (const marketKey in event.markets) {
+                          for (const submarketKey in event.markets[marketKey].submarkets) {
+                              const selections = event.markets[marketKey].submarkets[submarketKey].selections;
+                              for (const selection of selections) {
+                                  const id = `${event.id}-${marketKey}-${selection.outcome}-${selection.params}`;
+                                  if (!newHistory[id]) newHistory[id] = [];
+                                  if (newHistory[id].length === 0 || newHistory[id][newHistory[id].length - 1].price !== selection.price) {
+                                      newHistory[id].push({ time: now, price: selection.price });
+                                  }
+                              }
+                          }
+                      }
+                  }
+                  return newHistory;
+              });
+          };
 
           const handleExpandCompetition = async (key, isExpanding) => {
               setExpanded(prev => ({ ...prev, [key]: isExpanding }));
@@ -276,6 +283,48 @@
                   finally { setLoadingEvents(prev => ({ ...prev, [key]: false })); }
               }
           };
+          
+          useEffect(() => {
+            const fetchInitialData = async () => {
+                try {
+                    const response = await fetch('/.netlify/functions/fetch-competitions');
+                    if (!response.ok) throw new Error(`Network error: ${response.statusText}`);
+                    const data = await response.json();
+                    
+                    let allCompetitions = [];
+                    if (data && data.categories) {
+                        allCompetitions = data.categories.flatMap(cat => 
+                            cat.competitions.map(comp => ({ ...comp, category: { name: cat.name, key: cat.key } }))
+                        );
+                    }
+                    
+                    const firstPlayableComp = allCompetitions.find(c => c.eventCount > 0);
+                    if (firstPlayableComp) {
+                        setExpanded({ [firstPlayableComp.category.name.toLowerCase()]: true, [firstPlayableComp.key]: true });
+                        setLoadingEvents({ [firstPlayableComp.key]: true });
+                        const eventsResponse = await fetch(`/.netlify/functions/fetch-events?competitionKey=${firstPlayableComp.key}`);
+                        if (eventsResponse.ok) {
+                            const eventsData = await eventsResponse.json();
+                            const tradingEvents = (eventsData.events || []).filter(event => event.status === 'TRADING' && !(event.markets && event.markets['soccer.outright.v3']));
+                            const compsWithEvents = allCompetitions.map(c => c.key === firstPlayableComp.key ? { ...c, events: tradingEvents } : c);
+                            setCompetitions(compsWithEvents);
+                            if (tradingEvents.length > 0) {
+                                setSelectedEvent(tradingEvents[0]);
+                            }
+                            updateOddsHistory(tradingEvents);
+                        }
+                    } else {
+                        setCompetitions(allCompetitions);
+                    }
+                } catch (err) { 
+                    setError("Could not load competitions."); 
+                    console.error(err);
+                } finally { 
+                    setLoading(false); 
+                }
+            };
+            fetchInitialData();
+          }, []);
 
           useEffect(() => {
               const interval = setInterval(async () => {
@@ -305,26 +354,11 @@
           const groupedCompetitions = useMemo(() => competitions.reduce((acc, comp) => { const country = comp.category?.name?.toLowerCase() || 'other'; if (!acc[country]) acc[country] = {}; acc[country][comp.key] = comp; return acc; }, {}), [competitions]);
           
           useEffect(() => {
-              if (!loading && competitions.length > 0 && !selectedEvent) {
-                  const firstPlayableComp = competitions.find(c => c.eventCount > 0);
-                  if (firstPlayableComp) {
-                      handleExpandCompetition(firstPlayableComp.key, true);
-                  }
-              }
-          }, [loading, competitions]);
-
-          useEffect(() => {
               if (selectedEvent) {
                   const allEvents = competitions.flatMap(c => c.events || []);
                   const updatedEvent = allEvents.find(e => e.id === selectedEvent.id);
                   if (updatedEvent) {
                       setSelectedEvent(updatedEvent);
-                  }
-              } else {
-                  // If selected event is gone (e.g. due to refresh), try to select first available
-                  const firstCompWithEvents = competitions.find(c => c.events && c.events.length > 0);
-                  if (firstCompWithEvents) {
-                      setSelectedEvent(firstCompWithEvents.events[0]);
                   }
               }
           }, [competitions]);
