@@ -103,6 +103,7 @@
         const MarketDisplay = ({ marketKey, marketData, homeTeam, awayTeam }) => {
             const [isExpanded, setIsExpanded] = useState(true);
             const selections = Object.values(marketData.submarkets)[0]?.selections || [];
+
             const renderMarket = () => {
                 if (marketKey === 'soccer.match_odds') {
                     const home = selections.find(s => s.outcome === 'home'), draw = selections.find(s => s.outcome === 'draw'), away = selections.find(s => s.outcome === 'away');
@@ -112,8 +113,15 @@
                     const groupedByTotal = selections.reduce((acc, sel) => { const total = sel.params.split('=')[1]; if (!acc[total]) acc[total] = {}; acc[total][sel.outcome] = sel; return acc; }, {});
                     return <div className="space-y-3">{Object.entries(groupedByTotal).map(([total, outcomes]) => <div key={total} className="flex items-center gap-2"><div className="w-20 text-center text-gray-300 font-semibold">{total}</div><div className="flex-1 grid grid-cols-2 gap-2">{outcomes.over && <OddsButton {...outcomes.over} label="Over" />}{outcomes.under && <OddsButton {...outcomes.under} label="Under" />}</div></div>)}</div>;
                 }
-                return <p>Unsupported market type.</p>;
+                // --- NEW: Add rendering logic for Both Teams to Score ---
+                if (marketKey === 'soccer.both_teams_to_score') {
+                    const yes = selections.find(s => s.outcome === 'yes');
+                    const no = selections.find(s => s.outcome === 'no');
+                    return <div className="grid grid-cols-2 gap-2">{yes && <OddsButton {...yes} label="Yes" />}{no && <OddsButton {...no} label="No" />}</div>;
+                }
+                return null; // Return null for unsupported markets
             };
+
             return (
                 <div className="bg-gray-800 rounded-lg shadow-lg overflow-hidden">
                     <button onClick={() => setIsExpanded(!isExpanded)} className="w-full flex justify-between items-center p-3 text-left font-semibold text-white bg-gray-700/50 hover:bg-gray-700 transition-colors duration-200">
@@ -155,9 +163,32 @@
         };
 
         const EventDetails = ({ event }) => {
-          const markets = useMemo(() => event ? event.markets || {} : {}, [event]);
+          const markets = useMemo(() => {
+              if (!event || !event.markets) return [];
+              // --- UPDATE: Filter for all supported markets before rendering ---
+              return Object.entries(event.markets).filter(([key]) => 
+                  key === 'soccer.match_odds' || 
+                  key.includes('total_goals') ||
+                  key === 'soccer.both_teams_to_score'
+              );
+          }, [event]);
+
           if (!event) return <div className="flex items-center justify-center h-full text-gray-400 p-4 text-center"><p className="text-xl">Select an event from the sidebar.</p></div>;
-          return <div className="max-w-4xl mx-auto p-4 space-y-4"><div className="text-center"><h2 className="text-2xl sm:text-3xl font-bold text-white">{event.name}</h2><p className="text-sm text-gray-400 mt-1">{formatDate(event.cutoffTime)}</p></div><LambdaGoalsDisplay markets={markets} homeTeam={event.home.name} awayTeam={event.away.name} />{Object.keys(markets).length > 0 ? Object.entries(markets).map(([key, data]) => <MarketDisplay key={key} marketKey={key} marketData={data} homeTeam={event.home.name} awayTeam={event.away.name} />) : <p className="text-center text-gray-400 bg-gray-800 p-6 rounded-lg">No market data available.</p>}</div>;
+          
+          return (
+              <div className="max-w-4xl mx-auto p-4 space-y-4">
+                  <div className="text-center">
+                      <h2 className="text-2xl sm:text-3xl font-bold text-white">{event.name}</h2>
+                      <p className="text-sm text-gray-400 mt-1">{formatDate(event.cutoffTime)}</p>
+                  </div>
+                  <LambdaGoalsDisplay markets={event.markets || {}} homeTeam={event.home.name} awayTeam={event.away.name} />
+                  {markets.length > 0 ? 
+                      markets.map(([key, data]) => <MarketDisplay key={key} marketKey={key} marketData={data} homeTeam={event.home.name} awayTeam={event.away.name} />)
+                      : 
+                      <p className="text-center text-gray-400 bg-gray-800 p-6 rounded-lg">No supported market data available for this event.</p>
+                  }
+              </div>
+          );
         };
 
         const Sidebar = ({ groupedData, onSelectEvent, selectedEventId, onExpandCompetition, loadingEvents }) => {
@@ -198,7 +229,6 @@
                     if (!response.ok) throw new Error(`Network error: ${response.statusText}`);
                     const data = await response.json();
                     
-                    // --- FIX: Transform the nested API data into a flat structure ---
                     if (data && data.categories) {
                         const flattenedCompetitions = data.categories.flatMap(category =>
                             category.competitions.map(comp => ({
