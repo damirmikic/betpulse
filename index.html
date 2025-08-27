@@ -212,7 +212,7 @@
         };
 
         const Sidebar = ({ groupedData, onSelectEvent, selectedEventId, onExpandCompetition, loadingEvents, expanded }) => {
-            const toggleExpand = (key, hasEvents) => { if (!hasEvents) onExpandCompetition(key); onExpandCompetition(key, !expanded[key]); };
+            const toggleExpand = (key, hasEvents) => { onExpandCompetition(key, !expanded[key]); };
             if (!groupedData || Object.keys(groupedData).length === 0) return <p className="text-gray-400 p-4">No competitions found.</p>;
             return <nav className="space-y-1">{Object.entries(groupedData).map(([country, competitions]) => <div key={country} className="bg-gray-800/50 rounded-lg overflow-hidden"><button onClick={() => toggleExpand(country)} className="w-full flex justify-between items-center p-3 text-left font-semibold text-white bg-gray-700/30 hover:bg-gray-700/60"><span className="capitalize">{country}</span><ChevronDownIcon className={`w-5 h-5 transform transition-transform duration-300 ${expanded[country] ? 'rotate-180' : ''}`} /></button>{expanded[country] && <div className="pl-2 pr-1 py-1">{Object.values(competitions).map(comp => <div key={comp.key} className="bg-gray-800 rounded-md overflow-hidden"><button onClick={() => toggleExpand(comp.key, !!comp.events)} className="w-full flex justify-between items-center p-2 text-left text-sm font-medium text-gray-300 hover:bg-gray-700/60"><span>{comp.name}</span><ChevronDownIcon className={`w-4 h-4 transform transition-transform duration-300 ${expanded[comp.key] ? 'rotate-180' : ''}`} /></button>{expanded[comp.key] && <div className="p-2 space-y-1">{loadingEvents[comp.key] ? <Spinner size="h-8 w-8" /> : comp.events?.length > 0 ? <ul>{comp.events.map(event => <li key={event.id}><button onClick={() => onSelectEvent(event)} className={`w-full text-left p-2 rounded-md text-xs transition-colors duration-200 ${selectedEventId === event.id ? 'bg-blue-600 text-white font-semibold' : 'text-gray-300 hover:bg-gray-700/60'}`}>{event.name}</button></li>)}</ul> : <p className="text-xs text-gray-500 p-2">No events found.</p>}</div>}</div>)}</div>}</div>)}</nav>;
         };
@@ -269,10 +269,7 @@
                       const response = await fetch(`/.netlify/functions/fetch-events?competitionKey=${key}`);
                       if (!response.ok) throw new Error('Failed to fetch events');
                       const data = await response.json();
-                      const tradingEvents = (data.events || []).filter(event => 
-                          event.status === 'TRADING' && 
-                          !(event.markets && event.markets['soccer.outright.v3'])
-                      );
+                      const tradingEvents = (data.events || []).filter(event => event.status === 'TRADING' && !(event.markets && event.markets['soccer.outright.v3']));
                       updateOddsHistory(tradingEvents);
                       setCompetitions(prev => prev.map(c => c.key === key ? { ...c, events: tradingEvents } : c));
                   } catch (err) { console.error(`Failed to fetch events for ${key}`, err); } 
@@ -289,10 +286,7 @@
                           const response = await fetch(`/.netlify/functions/fetch-events?competitionKey=${key}`);
                           if (!response.ok) return null;
                           const data = await response.json();
-                          const tradingEvents = (data.events || []).filter(event => 
-                              event.status === 'TRADING' && 
-                              !(event.markets && event.markets['soccer.outright.v3'])
-                          );
+                          const tradingEvents = (data.events || []).filter(event => event.status === 'TRADING' && !(event.markets && event.markets['soccer.outright.v3']));
                           return { key, events: tradingEvents };
                       } catch (err) { console.error(`Failed to auto-refresh ${key}`, err); return null; }
                   }));
@@ -309,6 +303,34 @@
           }, [expanded, competitions]);
 
           const groupedCompetitions = useMemo(() => competitions.reduce((acc, comp) => { const country = comp.category?.name?.toLowerCase() || 'other'; if (!acc[country]) acc[country] = {}; acc[country][comp.key] = comp; return acc; }, {}), [competitions]);
+          
+          // --- FIX: Automatically select the first event when competitions load ---
+          useEffect(() => {
+              if (!loading && competitions.length > 0 && !selectedEvent) {
+                  const firstCompWithEvents = competitions.find(c => c.events && c.events.length > 0);
+                  if (firstCompWithEvents) {
+                      setSelectedEvent(firstCompWithEvents.events[0]);
+                  } else {
+                      // If no comps have events, expand the first one to trigger a fetch
+                      const firstCompKey = competitions[0]?.key;
+                      if (firstCompKey) {
+                          handleExpandCompetition(firstCompKey, true);
+                      }
+                  }
+              }
+          }, [loading, competitions, selectedEvent]);
+
+          // --- FIX: Update selected event when events list changes ---
+          useEffect(() => {
+              if (selectedEvent) {
+                  const allEvents = competitions.flatMap(c => c.events || []);
+                  const updatedEvent = allEvents.find(e => e.id === selectedEvent.id);
+                  if (updatedEvent) {
+                      setSelectedEvent(updatedEvent);
+                  }
+              }
+          }, [competitions]);
+
           const handleSelectEvent = (event) => { setSelectedEvent(event); setIsSidebarOpen(false); };
           useEffect(() => { if (selectedEvent && mainContentRef.current) mainContentRef.current.scrollTop = 0; }, [selectedEvent]);
           const handleScroll = () => { if (mainContentRef.current) setShowScrollButton(mainContentRef.current.scrollTop > 300); };
