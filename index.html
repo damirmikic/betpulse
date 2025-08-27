@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sports Odds Viewer</title>
+    <title>Bet Pulse</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
@@ -123,10 +123,9 @@
                         const params = new URLSearchParams(sel.params);
                         const team = params.get('team');
                         const total = params.get('total');
-                        const outcome = sel.outcome;
                         if (!acc[team]) acc[team] = {};
                         if (!acc[team][total]) acc[team][total] = {};
-                        acc[team][total][outcome] = sel;
+                        acc[team][total][sel.outcome] = sel;
                         return acc;
                     }, {});
                     return <div className="space-y-4">{Object.entries(groupedByTeam).map(([team, totals]) => <div key={team}><h4 className="text-md font-semibold text-gray-300 mb-2 capitalize">{team === 'home' ? homeTeam : awayTeam} - Team Goals</h4><div className="space-y-3">{Object.entries(totals).map(([total, outcomes]) => <div key={`${team}-${total}`} className="flex items-center gap-2"><div className="w-20 text-center text-gray-300 font-semibold">{total}</div><div className="flex-1 grid grid-cols-2 gap-2">{outcomes.over && <OddsButton {...outcomes.over} label="Over" />}{outcomes.under && <OddsButton {...outcomes.under} label="Under" />}</div></div>)}</div></div>)}</div>;
@@ -272,7 +271,9 @@
                   const response = await fetch(`/.netlify/functions/fetch-events?competitionKey=${competitionKey}`);
                   if (!response.ok) throw new Error('Failed to fetch events');
                   const data = await response.json();
-                  setCompetitions(prev => prev.map(c => c.key === competitionKey ? { ...c, events: data.events || [] } : c));
+                  // --- FIX: Filter for TRADING status only ---
+                  const tradingEvents = (data.events || []).filter(event => event.status === 'TRADING');
+                  setCompetitions(prev => prev.map(c => c.key === competitionKey ? { ...c, events: tradingEvents } : c));
               } catch (err) { console.error(`Failed to fetch events for ${competitionKey}`, err); } 
               finally { setLoadingEvents(prev => ({ ...prev, [competitionKey]: false })); }
           };
