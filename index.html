@@ -1,366 +1,657 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sports Odds Viewer</title>
-    
+    <title>Generator Košarkaških Specijala</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { background-color: #111827; font-family: sans-serif; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #475569;
+            font-weight: 500;
+            font-size: 0.875rem;
+        }
+        .input-group input, .input-group select {
+            width: 100%;
+            padding: 0.625rem 0.875rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.5rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            background-color: #f9fafb;
+            color: #1f2937;
+        }
+        .input-group input:disabled, .input-group input:read-only {
+             background-color: #e5e7eb;
+             cursor: not-allowed;
+        }
+        .input-group input:focus, .input-group select:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+        }
+        .action-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            font-weight: 700;
+            padding: 0.75rem 2rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+            transition: all 0.2s ease-in-out;
+            transform: translateY(0);
+        }
+        .action-btn:hover {
+             box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+             transform: translateY(-2px);
+        }
+        .action-btn.primary {
+            background-image: linear-gradient(to right, #3b82f6, #2563eb);
+            color: white;
+        }
+        .action-btn.secondary {
+            background-color: #4b5563;
+            color: white;
+        }
+        .action-btn.success {
+            background-image: linear-gradient(to right, #22c55e, #16a34a);
+            color: white;
+        }
+        .remove-preview-row {
+            background-color: #fee2e2;
+            color: #b91c1c;
+            border: 1px solid #fecaca;
+            border-radius: 9999px;
+            width: 1.5rem;
+            height: 1.5rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .remove-preview-row:hover {
+            background-color: #ef4444;
+            color: white;
+            border-color: #ef4444;
+        }
     </style>
 </head>
-<body>
-    <div id="root"></div>
+<body class="bg-gray-100 text-slate-800">
 
-    <script type="text/babel">
-        const { useState, useEffect, useMemo, useRef } = React;
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8">
+        <div class="max-w-4xl mx-auto bg-white rounded-xl border border-slate-200 shadow-sm">
+            <header class="p-6 sm:p-8 flex items-center gap-4 border-b border-slate-200">
+                <div class="bg-blue-100 text-blue-600 p-3 rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-basketball"><circle cx="12" cy="12" r="10"/><path d="M4.2 14.2c.627.442 1.346.734 2.14.868"/><path d="M17.66 2.34c.2.63.34 1.3.34 2.01"/><path d="M21.66 14.25c-.134.8-.426 1.519-.868 2.146"/><path d="M1.95 12c0-.71.14-1.38.34-2.01"/><path d="M9.8 2.8c-.442.627-.734 1.346-.868 2.14"/><path d="M14.25 21.66c-.8.134-1.519.426-2.146.868"/><path d="M2.34 6.34a10.02 10.02 0 0 0-1.99 4.21"/><path d="M12 22.05c.71 0 1.38-.14 2.01-.34"/><path d="M3.4 17.66c-.63-.2-1.3-.34-2.01-.34"/><path d="M2.8 9.8a10.02 10.02 0 0 0 4.21-1.99"/><path d="M22.05 12c0 .71-.14 1.38-.34 2.01"/><path d="M17.66 20.6a10.02 10.02 0 0 0 1.99-4.21"/></svg>
+                </div>
+                <h1 class="text-2xl sm:text-3xl font-bold text-slate-800">Generator Košarkaških Specijala</h1>
+            </header>
+            
+            <div class="p-6 sm:p-8">
+                <section class="mb-8 p-6 bg-slate-50 border border-slate-200 rounded-lg">
+                    <h3 class="font-bold text-lg text-slate-800 mb-4">1. Izbor Meča</h3>
+                    <div class="input-group">
+                        <label for="bball-match-select">Izaberi Meč</label>
+                        <select id="bball-match-select">
+                            <option>Učitavanje mečeva...</option>
+                        </select>
+                    </div>
+                    <div id="calculation-display" class="mt-4 grid grid-cols-2 gap-4 hidden">
+                        <div>
+                            <label class="text-sm font-medium text-slate-500">Poeni po min. (Domaćin):</label>
+                            <p id="lambda-home-display" class="font-bold text-lg text-blue-600">N/A</p>
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-slate-500">Poeni po min. (Gost):</label>
+                            <p id="lambda-away-display" class="font-bold text-lg text-blue-600">N/A</p>
+                        </div>
+                    </div>
+                </section>
 
-        // --- Helper Components & Hooks ---
-        const ChevronDownIcon = ({ className }) => (
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-            <path d="m6 9 6 6 6-6" />
-          </svg>
-        );
+                <section class="mb-8 p-6 bg-slate-50 border border-slate-200 rounded-lg">
+                    <h3 class="font-bold text-lg text-slate-800 mb-4">2. Dodavanje Igara</h3>
+                    <div id="betting-form" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                        <div class="input-group md:col-span-2">
+                            <label for="bet-market-select">Vrsta igre</label>
+                            <select id="bet-market-select"></select>
+                        </div>
 
-        const ArrowUpIcon = ({ className }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-                <path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>
-            </svg>
-        );
+                        <div id="player-selection-group" class="input-group md:col-span-2 hidden">
+                            <label for="player-select">Izaberi Igrača</label>
+                            <select id="player-select"></select>
+                        </div>
 
-        const ChartIcon = ({ className }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-                <path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/>
-            </svg>
-        );
+                        <div class="input-group">
+                            <label for="bet-handicap">Granica (GR)</label>
+                            <input type="number" id="bet-handicap" step="0.5" placeholder="npr. 67.5">
+                        </div>
+                         <div class="input-group">
+                            <label for="bet-odd-1">Kvota (1)</label>
+                            <input type="number" id="bet-odd-1" step="0.01" placeholder="npr. 1.85">
+                        </div>
+                        <div class="input-group">
+                            <label for="bet-odd-under">Kvota Manje (U)</label>
+                            <input type="number" id="bet-odd-under" step="0.01" placeholder="npr. 1.85">
+                        </div>
+                        <div class="input-group">
+                            <label for="bet-odd-over">Kvota Više (O)</label>
+                            <input type="number" id="bet-odd-over" step="0.01" placeholder="npr. 1.85">
+                        </div>
+                        <div class="md:col-span-4 flex items-end gap-4">
+                             <button id="add-bet-btn" class="w-full action-btn secondary">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus-circle"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                                Dodaj Igru
+                            </button>
+                            <button id="reset-bet-btn" class="w-full action-btn primary">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rotate-cw"><path d="M21 2v6h-6"></path><path d="M3 12a9 9 0 1 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path></svg>
+                                Poništi Unos
+                            </button>
+                        </div>
+                    </div>
+                </section>
 
-        const Spinner = ({ size = 'h-16 w-16' }) => (
-            <div className={`flex justify-center items-center h-full w-full p-8`}>
-                <div className={`animate-spin rounded-full ${size} border-t-2 border-b-2 border-blue-500`}></div>
+                 <div id="bball-preview-section" class="hidden">
+                    <h2 class="text-xl sm:text-2xl font-bold text-slate-800 mb-6 text-center">3. Pregled Generisanih Igara</h2>
+                    <div class="overflow-x-auto rounded-lg border border-slate-200">
+                        <table class="min-w-full">
+                            <thead class="bg-slate-50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Domacin (Naziv Meča)</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Gost (Vrsta Igre)</th>
+                                    <th scope="col" class="px-6 py-3 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider">GR</th>
+                                    <th scope="col" class="px-6 py-3 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider">U</th>
+                                    <th scope="col" class="px-6 py-3 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider">O</th>
+                                    <th scope="col" class="px-6 py-3 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider">1</th>
+                                    <th scope="col" class="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider">Ukloni</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bball-preview-table-body" class="bg-white"></tbody>
+                        </table>
+                    </div>
+                    <div class="flex justify-center mt-8">
+                        <button id="bball-download-csv-btn" class="w-full md:w-auto action-btn success">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-download-cloud"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"></path><path d="M12 12v9"></path><path d="m8 17 4 4 4-4"></path></svg>
+                            Preuzmi CSV
+                        </button>
+                    </div>
+                </div>
             </div>
-        );
+        </div>
+    </div>
 
-        const formatDate = (isoString) => {
-            if (!isoString) return 'N/A';
-            return new Date(isoString).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-        };
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const bballMatchSelect = document.getElementById('bball-match-select');
+            const betMarketSelect = document.getElementById('bet-market-select');
+            const playerSelectionGroup = document.getElementById('player-selection-group');
+            const playerSelect = document.getElementById('player-select');
+            const betHandicapInput = document.getElementById('bet-handicap');
+            const betOdd1Input = document.getElementById('bet-odd-1');
+            const betOddUnderInput = document.getElementById('bet-odd-under');
+            const betOddOverInput = document.getElementById('bet-odd-over');
+            const addBetBtn = document.getElementById('add-bet-btn');
+            const resetBetBtn = document.getElementById('reset-bet-btn');
+            const bballDownloadCsvBtn = document.getElementById('bball-download-csv-btn');
+            const bballPreviewSection = document.getElementById('bball-preview-section');
+            const bballPreviewTableBody = document.getElementById('bball-preview-table-body');
+            const calculationDisplay = document.getElementById('calculation-display');
+            const lambdaHomeDisplay = document.getElementById('lambda-home-display');
+            const lambdaAwayDisplay = document.getElementById('lambda-away-display');
 
-        // --- Poisson Calculation Logic ---
-        const factorial = (n) => {
-            if (n > 170) return Infinity;
-            if (n === 0 || n === 1) return 1;
-            let result = 1;
-            for (let i = 2; i <= n; i++) result *= i;
-            return result;
-        };
+            let competitionData = null;
+            let generatedBets = [];
 
-        const poisson = (mu, x) => {
-            if (mu < 0) return 0;
-            return (Math.pow(mu, x) * Math.exp(-mu)) / factorial(x);
-        };
+            const bettingMarkets = [
+                'Ukupno skokova', 'Ukupno asistencija', 
+                'Ukupno postignutih 2P', 'Ukupno postignutih 3P', 'Ukupno postignutih sl. bacanja',
+                'Ukupno izgubljenih lopti', '1. min oba tima daju trojku',
+                'Igrac postize 20+ poena',
+                '1. minut oba tima daju kos', 
+                '1. min - tačno 0 poena', '1. min - tačno 2 poena', '1. min - tačno 3 poena', '1. min - tačno 4 poena',
+                '2. min 8+ poena', '2. min 10+ poena'
+            ];
 
-        const homeAndUnderProbs = (homeExpectedGoals, awayExpectedGoals, goalLine) => {
-            let home = 0, away = 0, under = 0, over = 0;
-            for (let i = 0; i <= 10; i++) {
-                for (let j = 0; j <= 10; j++) {
-                    const prob = poisson(homeExpectedGoals, i) * poisson(awayExpectedGoals, j);
-                    if (i > j) home += prob; else if (j > i) away += prob;
-                    if (i + j < goalLine) under += prob; else if (i + j > goalLine) over += prob;
+            function populateBettingMarkets() {
+                betMarketSelect.innerHTML = '';
+                bettingMarkets.forEach(market => {
+                    const option = document.createElement('option');
+                    option.value = market;
+                    option.textContent = market;
+                    betMarketSelect.appendChild(option);
+                });
+            }
+
+            async function fetchBasketballApiEvents() {
+                try {
+                    const response = await fetch('/api/basketball-events');
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(`API greška: ${errorData.error || response.statusText}`);
+                    }
+                    
+                    competitionData = await response.json();
+                    
+                    if (competitionData.events && competitionData.events.length > 0) {
+                        bballMatchSelect.innerHTML = '<option value="">-- Izaberi Meč --</option>';
+                        competitionData.events.forEach((event, index) => {
+                            if (event.home && event.home.name) {
+                                const option = document.createElement('option');
+                                option.value = index;
+                                option.textContent = event.name;
+                                bballMatchSelect.appendChild(option);
+                            }
+                        });
+                    } else {
+                        bballMatchSelect.innerHTML = '<option value="">Nema dostupnih mečeva</option>';
+                    }
+                } catch (error) {
+                    console.error('Greška pri učitavanju košarkaških mečeva:', error);
+                    bballMatchSelect.innerHTML = `<option value="">Greška: ${error.message}</option>`;
                 }
             }
-            return [home / (home + away), under / (under + over)];
-        };
-
-        const calculateExpectedGoals = (overPrice, underPrice, homePrice, awayPrice, drawPrice, goalLine) => {
-            const normalisedUnder = (1 / underPrice) / ((1 / overPrice) + (1 / underPrice));
-            const normalisedHome = (1 / homePrice) / ((1 / homePrice) + (1 / awayPrice));
-            let bestTotalGoals = 0, minError = Infinity;
-            for (let tg = 1.0; tg <= 5.0; tg += 0.01) {
-                const currentError = Math.abs(homeAndUnderProbs(tg / 2, tg / 2, goalLine)[1] - normalisedUnder);
-                if (currentError < minError) { minError = currentError; bestTotalGoals = tg; }
-            }
-            let bestSupremacy = 0; minError = Infinity;
-            for (let sup = -2.0; sup <= 2.0; sup += 0.01) {
-                let homeExpected = bestTotalGoals / 2 + sup / 2, awayExpected = bestTotalGoals / 2 - sup / 2;
-                if (homeExpected < 0 || awayExpected < 0) continue;
-                const currentError = Math.abs(homeAndUnderProbs(homeExpected, awayExpected, goalLine)[0] - normalisedHome);
-                if (currentError < minError) { minError = currentError; bestSupremacy = sup; }
-            }
-            return { lambdaHome: bestTotalGoals / 2 + bestSupremacy / 2, lambdaAway: bestTotalGoals / 2 - bestSupremacy / 2, lambdaTotal: bestTotalGoals };
-        };
-
-        // --- Main Application Components ---
-        const OddsButton = ({ label, price, maxStake, probability, onChartOpen }) => (
-            <div className="flex-1 p-2 bg-gray-700/60 rounded-md transition-all duration-300 text-center flex flex-col justify-between">
-                <div>
-                    <span className="block text-sm text-gray-300 font-medium">{label}</span>
-                    <span className="block text-lg font-bold text-white mt-1">{price.toFixed(3)}</span>
-                    <span className="block text-xs text-cyan-400">{(probability * 100).toFixed(1)}%</span>
-                </div>
-                <div className="flex justify-between items-end mt-2">
-                    <span className="block text-xs text-gray-400">${maxStake.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
-                    <button onClick={onChartOpen} className="text-gray-400 hover:text-white transition-colors">
-                        <ChartIcon className="w-4 h-4" />
-                    </button>
-                </div>
-            </div>
-        );
-
-        const formatMarketTitle = (marketKey) => marketKey.replace('soccer.', '').replace(/_/g, ' ').split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-
-        const MarketDisplay = ({ marketKey, marketData, homeTeam, awayTeam, onChartOpen, eventId }) => {
-            const [isExpanded, setIsExpanded] = useState(true);
             
-            const renderMarket = () => {
-                const selections = Object.values(marketData.submarkets).flatMap(sub => sub.selections);
-                if (!selections || selections.length === 0) return null;
+            function populatePlayerDropdown(matchIndex) {
+                playerSelect.innerHTML = '<option value="">-- Izaberite igrača --</option>';
+                if (matchIndex === "" || matchIndex === null) {
+                    return;
+                }
 
-                const getChartHandler = (selection) => () => {
-                    const selectionId = `${eventId}-${marketKey}-${selection.outcome}-${selection.params}`;
-                    onChartOpen(selectionId, `${homeTeam} v ${awayTeam} - ${formatMarketTitle(marketKey)} - ${selection.outcome}`);
+                const selectedEvent = competitionData.events[matchIndex];
+                const players = selectedEvent.players;
+                const playerPointsMarket = selectedEvent.markets?.['basketball.player_points']?.submarkets?.['period=ot&period=ft']?.selections;
+
+                if (players) {
+                    Object.values(players).forEach(player => {
+                        let optionText = player.name;
+                        
+                        if (playerPointsMarket) {
+                            const playerMarket = playerPointsMarket.find(p => p.params.includes(player.name.toLowerCase().replace(/ /g, '-')));
+                            if (playerMarket) {
+                                const totalMatch = playerMarket.params.match(/total=([\d.]+)/);
+                                if (totalMatch && totalMatch[1]) {
+                                    optionText += ` (${totalMatch[1]})`;
+                                }
+                            }
+                        }
+                        
+                        const option = document.createElement('option');
+                        option.value = player.name;
+                        option.textContent = optionText;
+                        playerSelect.appendChild(option);
+                    });
+                }
+            }
+
+            function addBetToGenerator() {
+                const matchIndex = bballMatchSelect.value;
+                if (matchIndex === "" || matchIndex === null) {
+                    alert('Molimo Vas izaberite meč.');
+                    return;
+                }
+
+                const selectedEvent = competitionData.events[matchIndex];
+                const marketType = betMarketSelect.value;
+                let guestValue = marketType;
+
+                if (marketType === 'Igrac postize 20+ poena') {
+                    const selectedPlayer = playerSelect.value;
+                    if (!selectedPlayer) {
+                        alert('Molimo Vas izaberite igrača.');
+                        return;
+                    }
+                    guestValue = `${selectedPlayer} - ${marketType}`;
+                }
+
+                const bet = {
+                    matchName: competitionData.name,
+                    leagueName: marketType,
+                    domacin: selectedEvent.name,
+                    gost: guestValue,
+                    cutoffTime: selectedEvent.cutoffTime,
+                    gr: betHandicapInput.value || '',
+                    u: betOddUnderInput.value || '',
+                    o: betOddOverInput.value || '',
+                    '1': betOdd1Input.value || ''
                 };
 
-                if (marketKey === 'soccer.match_odds') {
-                    const home = selections.find(s => s.outcome === 'home'), draw = selections.find(s => s.outcome === 'draw'), away = selections.find(s => s.outcome === 'away');
-                    return <div className="flex gap-2">{home && <OddsButton {...home} label={homeTeam} onChartOpen={getChartHandler(home)} />}{draw && <OddsButton {...draw} label="Draw" onChartOpen={getChartHandler(draw)} />}{away && <OddsButton {...away} label={awayTeam} onChartOpen={getChartHandler(away)}/>}</div>;
-                }
-                if (marketKey === 'soccer.total_goals' || marketKey === 'soccer.total_goals_period_first_half') {
-                    const groupedByTotal = selections.reduce((acc, sel) => { const total = sel.params.split('=')[1]; if (!acc[total]) acc[total] = {}; acc[total][sel.outcome] = sel; return acc; }, {});
-                    return <div className="space-y-3">{Object.entries(groupedByTotal).map(([total, outcomes]) => <div key={total} className="flex items-center gap-2"><div className="w-20 text-center text-gray-300 font-semibold">{total}</div><div className="flex-1 flex gap-2">{outcomes.over && <OddsButton {...outcomes.over} label="Over" onChartOpen={getChartHandler(outcomes.over)} />}{outcomes.under && <OddsButton {...outcomes.under} label="Under" onChartOpen={getChartHandler(outcomes.under)} />}</div></div>)}</div>;
-                }
-                if (marketKey === 'soccer.both_teams_to_score') {
-                    const yes = selections.find(s => s.outcome === 'yes');
-                    const no = selections.find(s => s.outcome === 'no');
-                    return <div className="flex gap-2">{yes && <OddsButton {...yes} label="Yes" onChartOpen={getChartHandler(yes)} />}{no && <OddsButton {...no} label="No" onChartOpen={getChartHandler(no)} />}</div>;
-                }
-                if (marketKey === 'soccer.team_total_goals') {
-                    const groupedByTeam = selections.reduce((acc, sel) => {
-                        const params = new URLSearchParams(sel.params);
-                        const team = params.get('team');
-                        const total = params.get('total');
-                        if (team && total) {
-                            if (!acc[team]) acc[team] = {};
-                            if (!acc[team][total]) acc[team][total] = {};
-                            acc[team][total][sel.outcome] = sel;
-                        }
-                        return acc;
-                    }, {});
-                    const homeTotals = groupedByTeam.home || {}, awayTotals = groupedByTeam.away || {};
-                    return (
-                        <div className="space-y-4">
-                            <div><h4 className="text-md font-semibold text-gray-300 mb-2">{homeTeam} - Team Goals</h4>{Object.keys(homeTotals).length > 0 ? <div className="space-y-3">{Object.entries(homeTotals).map(([total, outcomes]) => <div key={`home-${total}`} className="flex items-center gap-2"><div className="w-20 text-center text-gray-300 font-semibold">{total}</div><div className="flex-1 flex gap-2">{outcomes.over && <OddsButton {...outcomes.over} label="Over" onChartOpen={getChartHandler(outcomes.over)} />}{outcomes.under && <OddsButton {...outcomes.under} label="Under" onChartOpen={getChartHandler(outcomes.under)} />}</div></div>)}</div> : <p className="text-xs text-gray-500 px-2">No odds available.</p>}</div>
-                            <div><h4 className="text-md font-semibold text-gray-300 mb-2">{awayTeam} - Team Goals</h4>{Object.keys(awayTotals).length > 0 ? <div className="space-y-3">{Object.entries(awayTotals).map(([total, outcomes]) => <div key={`away-${total}`} className="flex items-center gap-2"><div className="w-20 text-center text-gray-300 font-semibold">{total}</div><div className="flex-1 flex gap-2">{outcomes.over && <OddsButton {...outcomes.over} label="Over" onChartOpen={getChartHandler(outcomes.over)} />}{outcomes.under && <OddsButton {...outcomes.under} label="Under" onChartOpen={getChartHandler(outcomes.under)} />}</div></div>)}</div> : <p className="text-xs text-gray-500 px-2">No odds available.</p>}</div>
-                        </div>
-                    );
-                }
-                return null;
-            };
+                generatedBets.push(bet);
+                renderPreviewTable();
+                resetBetForm();
+            }
 
-            return (
-                <div className="bg-gray-800 rounded-lg shadow-lg overflow-hidden">
-                    <button onClick={() => setIsExpanded(!isExpanded)} className="w-full flex justify-between items-center p-3 text-left font-semibold text-white bg-gray-700/50 hover:bg-gray-700 transition-colors duration-200">
-                        <h3 className="text-lg">{formatMarketTitle(marketKey)}</h3>
-                        <ChevronDownIcon className={`w-5 h-5 transform transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
-                    </button>
-                    {isExpanded && <div className="p-4 border-t border-gray-700/50">{renderMarket()}</div>}
-                </div>
-            );
-        };
+            function renderPreviewTable() {
+                bballPreviewTableBody.innerHTML = '';
+                if (generatedBets.length > 0) {
+                    bballPreviewSection.classList.remove('hidden');
+                } else {
+                    bballPreviewSection.classList.add('hidden');
+                }
 
-        const LambdaGoalsDisplay = ({ markets, homeTeam, awayTeam }) => {
-            const lambdaData = useMemo(() => {
-                try {
-                    const matchOddsMarket = markets['soccer.match_odds'], totalGoalsMarket = markets['soccer.total_goals'];
-                    if (!matchOddsMarket || !totalGoalsMarket) return null;
-                    const matchSelections = Object.values(matchOddsMarket.submarkets)[0]?.selections, totalSelections = Object.values(totalGoalsMarket.submarkets)[0]?.selections;
-                    if (!matchSelections || !totalSelections) return null;
-                    const homeSel = matchSelections.find(s => s.outcome === 'home'), drawSel = matchSelections.find(s => s.outcome === 'draw'), awaySel = matchSelections.find(s => s.outcome === 'away');
-                    let mainGoalLineData = null, minDiff = Infinity;
-                    const totals = {};
-                    totalSelections.forEach(s => { const totalVal = s.params.split('=')[1]; if (!totals[totalVal]) totals[totalVal] = {}; totals[totalVal][s.outcome] = s.price; });
-                    for (const total in totals) {
-                        if (totals[total].over && totals[total].under) {
-                            const diff = Math.abs(totals[total].over - totals[total].under);
-                            if (diff < minDiff) { minDiff = diff; mainGoalLineData = { goalLine: parseFloat(total), overPrice: totals[total].over, underPrice: totals[total].under }; }
+                generatedBets.forEach((bet, index) => {
+                    const row = bballPreviewTableBody.insertRow();
+                    row.className = 'bg-white even:bg-slate-50';
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-800">${bet.domacin}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600">${bet.gost}</td>
+                        <td class="px-2 py-1"><input type="number" step="0.5" class="w-full text-center bg-transparent rounded-md p-1 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" value="${bet.gr}" data-index="${index}" data-field="gr"></td>
+                        <td class="px-2 py-1"><input type="number" step="0.01" class="w-full text-center bg-transparent rounded-md p-1 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" value="${bet.u}" data-index="${index}" data-field="u"></td>
+                        <td class="px-2 py-1"><input type="number" step="0.01" class="w-full text-center bg-transparent rounded-md p-1 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" value="${bet.o}" data-index="${index}" data-field="o"></td>
+                        <td class="px-2 py-1"><input type="number" step="0.01" class="w-full text-center bg-transparent rounded-md p-1 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" value="${bet['1']}" data-index="${index}" data-field="1"></td>
+                        <td class="px-4 py-4 text-center">
+                            <button type="button" class="remove-preview-row" data-index="${index}" title="Ukloni ovu igru">&times;</button>
+                        </td>
+                    `;
+                });
+            }
+            
+            bballPreviewTableBody.addEventListener('input', function(e) {
+                if (e.target.tagName === 'INPUT') {
+                    const index = parseInt(e.target.dataset.index, 10);
+                    const field = e.target.dataset.field;
+                    const value = e.target.value;
+                    
+                    if (generatedBets[index]) {
+                        generatedBets[index][field] = value;
+                    }
+                }
+            });
+
+            bballPreviewTableBody.addEventListener('click', function(e) {
+                if(e.target.classList.contains('remove-preview-row')) {
+                    const indexToRemove = parseInt(e.target.dataset.index, 10);
+                    generatedBets.splice(indexToRemove, 1);
+                    renderPreviewTable();
+                }
+            });
+
+            function downloadBballCsv() {
+                if (generatedBets.length === 0) {
+                    alert('Nema dodatih igara za preuzimanje.');
+                    return;
+                }
+                
+                const header = "Datum,Vreme,Sifra,Domacin,Gost,1,X,2,GR,U,O,Yes,No\n";
+                let csvContent = header;
+
+                csvContent += `MATCH_NAME:${generatedBets[0].matchName},,,,,,,,,,,,\n`;
+
+                const groupedBets = generatedBets.reduce((acc, bet) => {
+                    if (!acc[bet.leagueName]) {
+                        acc[bet.leagueName] = [];
+                    }
+                    acc[bet.leagueName].push(bet);
+                    return acc;
+                }, {});
+
+                for (const leagueName in groupedBets) {
+                    csvContent += `LEAGUE_NAME:${leagueName},,,,,,,,,,,,\n`;
+                    
+                    groupedBets[leagueName].forEach(bet => {
+                        const kickoff = new Date(bet.cutoffTime);
+                        const date = `${kickoff.getDate().toString().padStart(2, '0')}.${(kickoff.getMonth() + 1).toString().padStart(2, '0')}.${kickoff.getFullYear()}`;
+                        const time = `${kickoff.getHours().toString().padStart(2, '0')}:${kickoff.getMinutes().toString().padStart(2, '0')}`;
+
+                        const rowData = [
+                            date, time, '',
+                            `"${bet.domacin.replace(/"/g, '""')}"`,
+                            `"${bet.gost.replace(/"/g, '""')}"`,
+                            bet['1'], '', '', bet.gr, bet.u, bet.o, '', ''
+                        ];
+                        csvContent += rowData.join(',') + '\n';
+                    });
+                }
+                
+                const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const fileName = `${generatedBets[0].matchName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_specials.csv`;
+                link.href = URL.createObjectURL(blob);
+                link.download = fileName;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+
+            // --- Math & Calculation Helpers ---
+            const factCache = [1];
+            function factorial(n) {
+                if (n < 0) return NaN;
+                if (n > 170) return Infinity;
+                if (factCache[n] !== undefined) return factCache[n];
+                let val = factCache[factCache.length - 1];
+                for (let i = factCache.length; i <= n; i++) {
+                    val *= i;
+                    factCache[i] = val;
+                }
+                return val;
+            }
+
+            function poissonPMF(mu, k) {
+                return (Math.pow(mu, k) * Math.exp(-mu)) / factorial(k);
+            }
+            
+            function poissonCDF(mu, k) {
+                let sum = 0;
+                for (let i = 0; i <= k; i++) {
+                    sum += poissonPMF(mu, i);
+                }
+                return sum;
+            }
+
+            function probOver(mu, k) {
+                return 1 - poissonCDF(mu, k);
+            }
+
+            function applyMargin(odd, margin = 8) {
+                if (!odd || odd <= 1) return odd;
+                const probability = 1 / odd;
+                const marginFactor = 1 + (margin / 100);
+                const newProbability = probability * marginFactor;
+                return 1 / newProbability;
+            }
+
+            function findMainLineData(selections) {
+                if (!selections || selections.length === 0) return { total: 0, overOdd: 0, underOdd: 0 };
+                let minDiff = Infinity;
+                let mainLine = { total: 0, overOdd: 0, underOdd: 0 };
+                
+                const totals = {};
+                selections.forEach(sel => {
+                    const totalMatch = sel.params.match(/total=([\d.]+)/);
+                    if (totalMatch) {
+                        const total = totalMatch[1];
+                        if (!totals[total]) totals[total] = {};
+                        totals[total][sel.outcome] = sel.price;
+                    }
+                });
+
+                for (const total in totals) {
+                    if (totals[total].over && totals[total].under) {
+                        const diff = Math.abs(totals[total].over - totals[total].under);
+                        if (diff < minDiff) {
+                            minDiff = diff;
+                            mainLine = {
+                                total: parseFloat(total),
+                                overOdd: totals[total].over,
+                                underOdd: totals[total].under
+                            };
                         }
                     }
-                    if (!homeSel || !drawSel || !awaySel || !mainGoalLineData) return null;
-                    return calculateExpectedGoals(mainGoalLineData.overPrice, mainGoalLineData.underPrice, homeSel.price, awaySel.price, drawSel.price, mainGoalLineData.goalLine);
-                } catch (error) { console.error("Error calculating lambda goals:", error); return null; }
-            }, [markets]);
-            return (
-                <div className="bg-gray-800 rounded-lg shadow-lg p-4">
-                    <h3 className="text-lg font-semibold text-white mb-3 text-center">Expected Goals (Lambda)</h3>
-                    {lambdaData ? <div className="flex justify-around text-center"><div><div className="text-sm text-gray-400">{homeTeam}</div><div className="text-2xl font-bold text-cyan-400">{lambdaData.lambdaHome.toFixed(2)}</div></div><div><div className="text-sm text-gray-400">Total Match</div><div className="text-2xl font-bold text-white">{lambdaData.lambdaTotal.toFixed(2)}</div></div><div><div className="text-sm text-gray-400">{awayTeam}</div><div className="text-2xl font-bold text-cyan-400">{lambdaData.lambdaAway.toFixed(2)}</div></div></div> : <p className="text-center text-gray-400 text-sm">Calculation data not available.</p>}
-                </div>
-            );
-        };
+                }
+                return mainLine;
+            }
 
-        const EventDetails = ({ event, onChartOpen }) => {
-          const markets = useMemo(() => {
-              if (!event || !event.markets) return [];
-              const supportedMarkets = ['soccer.match_odds', 'soccer.total_goals', 'soccer.total_goals_period_first_half', 'soccer.both_teams_to_score', 'soccer.team_total_goals'];
-              return Object.entries(event.markets).filter(([key]) => supportedMarkets.includes(key));
-          }, [event]);
-          if (!event) return <div className="flex items-center justify-center h-full text-gray-400 p-4 text-center"><p className="text-xl">Select an event from the sidebar.</p></div>;
-          return <div className="max-w-4xl mx-auto p-4 space-y-4"><div className="text-center"><h2 className="text-2xl sm:text-3xl font-bold text-white">{event.name}</h2><p className="text-sm text-gray-400 mt-1">{formatDate(event.cutoffTime)}</p></div><LambdaGoalsDisplay markets={event.markets || {}} homeTeam={event.home.name} awayTeam={event.away.name} />{markets.length > 0 ? markets.map(([key, data]) => <MarketDisplay key={key} marketKey={key} marketData={data} homeTeam={event.home.name} awayTeam={event.away.name} onChartOpen={onChartOpen} eventId={event.id} />) : <p className="text-center text-gray-400 bg-gray-800 p-6 rounded-lg">No supported market data available.</p>}</div>;
-        };
+            function calculateAndDisplayOdds(marketType) {
+                const matchIndex = bballMatchSelect.value;
+                betOdd1Input.value = '';
+                if (matchIndex === "" || matchIndex === null) {
+                    calculationDisplay.classList.add('hidden');
+                    return;
+                }
 
-        const Sidebar = ({ groupedData, onSelectEvent, selectedEventId, onExpandCompetition, loadingEvents, expanded }) => {
-            const toggleExpand = (key, hasEvents) => { if (!hasEvents) onExpandCompetition(key); onExpandCompetition(key, !expanded[key]); };
-            if (!groupedData || Object.keys(groupedData).length === 0) return <p className="text-gray-400 p-4">No competitions found.</p>;
-            return <nav className="space-y-1">{Object.entries(groupedData).map(([country, competitions]) => <div key={country} className="bg-gray-800/50 rounded-lg overflow-hidden"><button onClick={() => toggleExpand(country)} className="w-full flex justify-between items-center p-3 text-left font-semibold text-white bg-gray-700/30 hover:bg-gray-700/60"><span className="capitalize">{country}</span><ChevronDownIcon className={`w-5 h-5 transform transition-transform duration-300 ${expanded[country] ? 'rotate-180' : ''}`} /></button>{expanded[country] && <div className="pl-2 pr-1 py-1">{Object.values(competitions).map(comp => <div key={comp.key} className="bg-gray-800 rounded-md overflow-hidden"><button onClick={() => toggleExpand(comp.key, !!comp.events)} className="w-full flex justify-between items-center p-2 text-left text-sm font-medium text-gray-300 hover:bg-gray-700/60"><span>{comp.name}</span><ChevronDownIcon className={`w-4 h-4 transform transition-transform duration-300 ${expanded[comp.key] ? 'rotate-180' : ''}`} /></button>{expanded[comp.key] && <div className="p-2 space-y-1">{loadingEvents[comp.key] ? <Spinner size="h-8 w-8" /> : comp.events?.length > 0 ? <ul>{comp.events.map(event => <li key={event.id}><button onClick={() => onSelectEvent(event)} className={`w-full text-left p-2 rounded-md text-xs transition-colors duration-200 ${selectedEventId === event.id ? 'bg-blue-600 text-white font-semibold' : 'text-gray-300 hover:bg-gray-700/60'}`}>{event.name}</button></li>)}</ul> : <p className="text-xs text-gray-500 p-2">No events found.</p>}</div>}</div>)}</div>}</div>)}</nav>;
-        };
+                const selectedEvent = competitionData.events[matchIndex];
+                const market = selectedEvent.markets?.['basketball.1st_half_team_total'];
+                if (!market) {
+                    lambdaHomeDisplay.textContent = 'N/A';
+                    lambdaAwayDisplay.textContent = 'N/A';
+                    calculationDisplay.classList.remove('hidden');
+                    alert('Podaci za izračunavanje (1st half team total) nisu dostupni za ovaj meč.');
+                    return;
+                }
 
-        const FloatingScrollButton = ({ onClick }) => <button onClick={onClick} className="fixed bottom-6 right-6 lg:bottom-8 lg:right-8 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-3 shadow-lg transition-opacity duration-300 z-50" aria-label="Scroll to top"><ArrowUpIcon className="w-6 h-6" /></button>;
+                const homeSelections = market.submarkets['period=1h&period=q1&period=q2&team=home']?.selections;
+                const awaySelections = market.submarkets['period=1h&period=q1&period=q2&team=away']?.selections;
+                
+                const homeTotal = findMainLineData(homeSelections).total;
+                const awayTotal = findMainLineData(awaySelections).total;
 
-        const ChartModal = ({ chartData, onClose }) => {
-            if (!chartData || chartData.history.length < 2) return null;
-            const { title, history } = chartData;
-            const width = 500, height = 300, padding = 40;
-            const prices = history.map(p => p.price), times = history.map(p => p.time);
-            const minPrice = Math.min(...prices), maxPrice = Math.max(...prices);
-            const minTime = Math.min(...times), maxTime = Math.max(...times);
-            const mapRange = (val, inMin, inMax, outMin, outMax) => outMin + (outMax - outMin) * (val - inMin) / (inMax - inMin);
-            const points = history.map(p => `${mapRange(p.time, minTime, maxTime, padding, width - padding)},${mapRange(p.price, minPrice, maxPrice, height - padding, padding)}`).join(' ');
-            return <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}><div className="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-xl" onClick={e => e.stopPropagation()}><h3 className="text-xl font-bold text-white mb-4">{title}</h3><svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto bg-gray-900 rounded"><polyline fill="none" stroke="#38bdf8" strokeWidth="2" points={points} /><text x={padding} y={padding - 10} fill="#a0aec0" fontSize="12">{maxPrice.toFixed(2)}</text><text x={padding} y={height - padding + 15} fill="#a0aec0" fontSize="12">{minPrice.toFixed(2)}</text><text x={padding} y={height - 5} fill="#a0aec0" fontSize="12">{new Date(minTime).toLocaleTimeString()}</text><text x={width - padding} y={height - 5} fill="#a0aec0" fontSize="12" textAnchor="end">{new Date(maxTime).toLocaleTimeString()}</text></svg></div></div>;
-        };
+                if (homeTotal === 0 || awayTotal === 0) {
+                    lambdaHomeDisplay.textContent = 'N/A';
+                    lambdaAwayDisplay.textContent = 'N/A';
+                    calculationDisplay.classList.remove('hidden');
+                    return;
+                }
 
-        function App() {
-          const [competitions, setCompetitions] = useState([]);
-          const [selectedEvent, setSelectedEvent] = useState(null);
-          const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-          const [loading, setLoading] = useState(true);
-          const [error, setError] = useState(null);
-          const [loadingEvents, setLoadingEvents] = useState({});
-          const [showScrollButton, setShowScrollButton] = useState(false);
-          const [oddsHistory, setOddsHistory] = useState({});
-          const [chartData, setChartData] = useState(null);
-          const [expanded, setExpanded] = useState({});
-          const mainContentRef = useRef(null);
+                const lambda_home_1min = (homeTotal / 20) * 0.95;
+                const lambda_away_1min = (awayTotal / 20) * 0.95;
+                const lambda_home_2min = (homeTotal / 20); // Bez umanjenja za drugi minut
+                const lambda_away_2min = (awayTotal / 20); // Bez umanjenja za drugi minut
+                
+                lambdaHomeDisplay.textContent = lambda_home_1min.toFixed(4);
+                lambdaAwayDisplay.textContent = lambda_away_1min.toFixed(4);
+                calculationDisplay.classList.remove('hidden');
 
-          useEffect(() => {
-            const fetchCompetitions = async () => {
-                try {
-                    const response = await fetch('/.netlify/functions/fetch-competitions');
-                    if (!response.ok) throw new Error(`Network error: ${response.statusText}`);
-                    const data = await response.json();
-                    if (data && data.categories) {
-                        const flattened = data.categories.flatMap(cat => cat.competitions.map(comp => ({ ...comp, category: { name: cat.name, key: cat.key } })));
-                        setCompetitions(flattened);
-                    } else { setCompetitions([]); }
-                } catch (err) { setError("Could not load competitions."); console.error(err); } 
-                finally { setLoading(false); }
-            };
-            fetchCompetitions();
-          }, []);
+                const mu_1min = lambda_home_1min + lambda_away_1min;
+                const mu_2min_total = lambda_home_1min + lambda_away_1min + lambda_home_2min + lambda_away_2min;
+                
+                let probability = 0;
+                let rawOdd = 0;
 
-          const updateOddsHistory = (events) => {
-              const now = Date.now();
-              setOddsHistory(prevHistory => {
-                  const newHistory = { ...prevHistory };
-                  for (const event of events) {
-                      if (!event.markets) continue;
-                      for (const marketKey in event.markets) {
-                          for (const submarketKey in event.markets[marketKey].submarkets) {
-                              const selections = event.markets[marketKey].submarkets[submarketKey].selections;
-                              for (const selection of selections) {
-                                  const id = `${event.id}-${marketKey}-${selection.outcome}-${selection.params}`;
-                                  if (!newHistory[id]) newHistory[id] = [];
-                                  if (newHistory[id].length === 0 || newHistory[id][newHistory[id].length - 1].price !== selection.price) {
-                                      newHistory[id].push({ time: now, price: selection.price });
-                                  }
-                              }
-                          }
-                      }
-                  }
-                  return newHistory;
-              });
-          };
+                switch(marketType) {
+                    case '1. minut oba tima daju kos':
+                        const prob_home_2_plus = 1 - poissonPMF(lambda_home_1min, 0) - poissonPMF(lambda_home_1min, 1);
+                        const prob_away_2_plus = 1 - poissonPMF(lambda_away_1min, 0) - poissonPMF(lambda_away_1min, 1);
+                        probability = prob_home_2_plus * prob_away_2_plus;
+                        rawOdd = 1 / probability;
+                        betOdd1Input.value = (rawOdd * 0.80).toFixed(2); // Umanjenje od 20%
+                        return; 
+                    case '1. min - tačno 0 poena': probability = poissonPMF(mu_1min, 0); break;
+                    case '1. min - tačno 2 poena': probability = poissonPMF(mu_1min, 2); break;
+                    case '1. min - tačno 3 poena': probability = poissonPMF(mu_1min, 3); break;
+                    case '1. min - tačno 4 poena': probability = poissonPMF(mu_1min, 4); break;
+                    case '2. min 8+ poena': probability = probOver(mu_2min_total, 7); break;
+                    case '2. min 10+ poena': probability = probOver(mu_2min_total, 9); break;
+                }
 
-          const handleExpandCompetition = async (key, isExpanding) => {
-              setExpanded(prev => ({ ...prev, [key]: isExpanding }));
-              const competition = competitions.find(c => c.key === key);
-              if (isExpanding && competition && !competition.events) {
-                  setLoadingEvents(prev => ({ ...prev, [key]: true }));
-                  try {
-                      const response = await fetch(`/.netlify/functions/fetch-events?competitionKey=${key}`);
-                      if (!response.ok) throw new Error('Failed to fetch events');
-                      const data = await response.json();
-                      const tradingEvents = (data.events || []).filter(event => event.status === 'TRADING');
-                      updateOddsHistory(tradingEvents);
-                      setCompetitions(prev => prev.map(c => c.key === key ? { ...c, events: tradingEvents } : c));
-                  } catch (err) { console.error(`Failed to fetch events for ${key}`, err); } 
-                  finally { setLoadingEvents(prev => ({ ...prev, [key]: false })); }
-              }
-          };
+                if (probability > 0) {
+                    rawOdd = 1 / probability;
+                    const finalOdd = applyMargin(rawOdd);
+                    betOdd1Input.value = finalOdd.toFixed(2);
+                }
+            }
 
-          // --- NEW: Auto-refresh expanded competitions ---
-          useEffect(() => {
-              const interval = setInterval(async () => {
-                  const expandedKeys = Object.keys(expanded).filter(key => expanded[key] && key.startsWith('soccer-'));
-                  if (expandedKeys.length === 0) return;
+            function calculateAndSetHandicap(marketType) {
+                const matchIndex = bballMatchSelect.value;
+                betHandicapInput.value = '';
+                betOddOverInput.value = '';
+                betOddUnderInput.value = '';
+                if (matchIndex === "" || matchIndex === null) return;
 
-                  const updates = await Promise.all(expandedKeys.map(async key => {
-                      try {
-                          const response = await fetch(`/.netlify/functions/fetch-events?competitionKey=${key}`);
-                          if (!response.ok) return null;
-                          const data = await response.json();
-                          const tradingEvents = (data.events || []).filter(event => event.status === 'TRADING');
-                          return { key, events: tradingEvents };
-                      } catch (err) {
-                          console.error(`Failed to auto-refresh ${key}`, err);
-                          return null;
-                      }
-                  }));
+                const selectedEvent = competitionData.events[matchIndex];
+                const totalsMarket = selectedEvent.markets?.['basketball.totals']?.submarkets?.['period=ot&period=ft']?.selections;
+                const mainLineData = findMainLineData(totalsMarket);
 
-                  const validUpdates = updates.filter(Boolean);
-                  if (validUpdates.length > 0) {
-                      updateOddsHistory(validUpdates.flatMap(u => u.events));
-                      setCompetitions(prev => prev.map(c => {
-                          const update = validUpdates.find(u => u.key === c.key);
-                          return update ? { ...c, events: update.events } : c;
-                      }));
-                  }
-              }, 60000); // 60 seconds
+                if (mainLineData.total === 0) {
+                    alert('Glavna granica za ukupan broj poena nije dostupna za ovaj meč.');
+                    return;
+                }
 
-              return () => clearInterval(interval);
-          }, [expanded, competitions]);
+                let lambda = 0;
+                switch(marketType) {
+                    case 'Ukupno postignutih 2P':
+                        lambda = (mainLineData.total * 0.49) / 2;
+                        break;
+                    case 'Ukupno postignutih 3P':
+                        lambda = (mainLineData.total * 0.34) / 3;
+                        break;
+                    case 'Ukupno postignutih sl. bacanja':
+                        lambda = (mainLineData.total * 0.17) / 1;
+                        break;
+                }
+                
+                const calculatedHandicap = Math.floor(lambda) + 0.5;
+                betHandicapInput.value = calculatedHandicap.toFixed(1);
+
+                const prob_over = probOver(lambda, Math.floor(lambda));
+                const prob_under = 1 - prob_over;
+
+                const raw_odd_over = 1 / prob_over;
+                const raw_odd_under = 1 / prob_under;
+
+                betOddOverInput.value = applyMargin(raw_odd_over).toFixed(2);
+                betOddUnderInput.value = applyMargin(raw_odd_under).toFixed(2);
+            }
+            
+            function resetBetForm() {
+                betMarketSelect.selectedIndex = 0;
+                playerSelectionGroup.classList.add('hidden');
+                betHandicapInput.value = '';
+                betOdd1Input.value = '';
+                betOddUnderInput.value = '';
+                betOddOverInput.value = '';
+                calculationDisplay.classList.add('hidden');
+                betOdd1Input.readOnly = false;
+            }
+
+            function handleMarketSelectionChange() {
+                 const marketType = betMarketSelect.value;
+                 const autoCalcOddMarkets = [
+                    '1. minut oba tima daju kos', 
+                    '1. min - tačno 0 poena', '1. min - tačno 2 poena', '1. min - tačno 3 poena', '1. min - tačno 4 poena',
+                    '2. min 8+ poena', '2. min 10+ poena'
+                 ];
+                 const autoCalcHandicapMarkets = ['Ukupno postignutih 2P', 'Ukupno postignutih 3P', 'Ukupno postignutih sl. bacanja'];
+
+                betOdd1Input.readOnly = false;
+                playerSelectionGroup.classList.add('hidden');
+                calculationDisplay.classList.add('hidden');
+                
+                betHandicapInput.value = '';
+                betOdd1Input.value = '';
+                betOddUnderInput.value = '';
+                betOddOverInput.value = '';
 
 
-          const groupedCompetitions = useMemo(() => competitions.reduce((acc, comp) => { const country = comp.category?.name?.toLowerCase() || 'other'; if (!acc[country]) acc[country] = {}; acc[country][comp.key] = comp; return acc; }, {}), [competitions]);
-          const handleSelectEvent = (event) => { setSelectedEvent(event); setIsSidebarOpen(false); };
-          useEffect(() => { if (selectedEvent && mainContentRef.current) mainContentRef.current.scrollTop = 0; }, [selectedEvent]);
-          const handleScroll = () => { if (mainContentRef.current) setShowScrollButton(mainContentRef.current.scrollTop > 300); };
-          const scrollToTop = () => { if (mainContentRef.current) mainContentRef.current.scrollTo({ top: 0, behavior: 'smooth' }); };
-          const handleChartOpen = (selectionId, title) => setChartData({ history: oddsHistory[selectionId] || [], title });
-          
-          return (
-            <div className="bg-gray-900 font-sans h-screen flex flex-col lg:flex-row overflow-hidden text-white">
-              <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="lg:hidden fixed top-4 left-4 z-30 p-2 bg-blue-600 rounded-md text-white" aria-label="Toggle sidebar"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
-              <aside className={`fixed lg:relative inset-y-0 left-0 z-20 w-80 bg-gray-800/80 backdrop-blur-sm border-r border-gray-700 p-4 flex flex-col transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:flex-shrink-0`}>
-                <h1 className="text-2xl font-bold mb-4 text-white text-center">Sports Odds</h1>
-                <div className="flex-1 overflow-y-auto">
-                    {loading ? <Spinner /> : error ? <p className="text-red-400 p-4">{error}</p> : <Sidebar groupedData={groupedCompetitions} onSelectEvent={handleSelectEvent} selectedEventId={selectedEvent?.id} onExpandCompetition={handleExpandCompetition} loadingEvents={loadingEvents} expanded={expanded} />}
-                </div>
-              </aside>
-              <main ref={mainContentRef} onScroll={handleScroll} className="flex-1 overflow-y-auto relative">
-                {loading ? <Spinner /> : <EventDetails event={selectedEvent} onChartOpen={handleChartOpen} />}
-                {showScrollButton && <FloatingScrollButton onClick={scrollToTop} />}
-                <ChartModal chartData={chartData} onClose={() => setChartData(null)} />
-              </main>
-            </div>
-          );
-        }
-        
-        const container = document.getElementById('root');
-        const root = ReactDOM.createRoot(container);
-        root.render(<App />);
+                if (marketType === 'Igrac postize 20+ poena') {
+                    playerSelectionGroup.classList.remove('hidden');
+                    populatePlayerDropdown(bballMatchSelect.value);
+                } else if (autoCalcOddMarkets.includes(marketType)) {
+                    calculateAndDisplayOdds(marketType);
+                    betOdd1Input.readOnly = true;
+                } else if (autoCalcHandicapMarkets.includes(marketType)) {
+                    calculateAndSetHandicap(marketType);
+                }
+            }
+
+            bballMatchSelect.addEventListener('change', handleMarketSelectionChange);
+            betMarketSelect.addEventListener('change', handleMarketSelectionChange);
+            addBetBtn.addEventListener('click', addBetToGenerator);
+            resetBetBtn.addEventListener('click', resetBetForm);
+            bballDownloadCsvBtn.addEventListener('click', downloadBballCsv);
+
+            populateBettingMarkets();
+            fetchBasketballApiEvents();
+        });
     </script>
 </body>
 </html>
