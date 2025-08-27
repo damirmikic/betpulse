@@ -109,17 +109,29 @@
                     const home = selections.find(s => s.outcome === 'home'), draw = selections.find(s => s.outcome === 'draw'), away = selections.find(s => s.outcome === 'away');
                     return <div className="grid grid-cols-3 gap-2">{home && <OddsButton {...home} label={homeTeam} />}{draw && <OddsButton {...draw} label="Draw" />}{away && <OddsButton {...away} label={awayTeam} />}</div>;
                 }
-                if (marketKey.includes('total_goals')) {
+                if (marketKey === 'soccer.total_goals' || marketKey === 'soccer.total_goals_period_first_half') {
                     const groupedByTotal = selections.reduce((acc, sel) => { const total = sel.params.split('=')[1]; if (!acc[total]) acc[total] = {}; acc[total][sel.outcome] = sel; return acc; }, {});
                     return <div className="space-y-3">{Object.entries(groupedByTotal).map(([total, outcomes]) => <div key={total} className="flex items-center gap-2"><div className="w-20 text-center text-gray-300 font-semibold">{total}</div><div className="flex-1 grid grid-cols-2 gap-2">{outcomes.over && <OddsButton {...outcomes.over} label="Over" />}{outcomes.under && <OddsButton {...outcomes.under} label="Under" />}</div></div>)}</div>;
                 }
-                // --- NEW: Add rendering logic for Both Teams to Score ---
                 if (marketKey === 'soccer.both_teams_to_score') {
                     const yes = selections.find(s => s.outcome === 'yes');
                     const no = selections.find(s => s.outcome === 'no');
                     return <div className="grid grid-cols-2 gap-2">{yes && <OddsButton {...yes} label="Yes" />}{no && <OddsButton {...no} label="No" />}</div>;
                 }
-                return null; // Return null for unsupported markets
+                if (marketKey === 'soccer.team_total_goals') {
+                    const groupedByTeam = selections.reduce((acc, sel) => {
+                        const params = new URLSearchParams(sel.params);
+                        const team = params.get('team');
+                        const total = params.get('total');
+                        const outcome = sel.outcome;
+                        if (!acc[team]) acc[team] = {};
+                        if (!acc[team][total]) acc[team][total] = {};
+                        acc[team][total][outcome] = sel;
+                        return acc;
+                    }, {});
+                    return <div className="space-y-4">{Object.entries(groupedByTeam).map(([team, totals]) => <div key={team}><h4 className="text-md font-semibold text-gray-300 mb-2 capitalize">{team === 'home' ? homeTeam : awayTeam} - Team Goals</h4><div className="space-y-3">{Object.entries(totals).map(([total, outcomes]) => <div key={`${team}-${total}`} className="flex items-center gap-2"><div className="w-20 text-center text-gray-300 font-semibold">{total}</div><div className="flex-1 grid grid-cols-2 gap-2">{outcomes.over && <OddsButton {...outcomes.over} label="Over" />}{outcomes.under && <OddsButton {...outcomes.under} label="Under" />}</div></div>)}</div></div>)}</div>;
+                }
+                return null;
             };
 
             return (
@@ -165,12 +177,14 @@
         const EventDetails = ({ event }) => {
           const markets = useMemo(() => {
               if (!event || !event.markets) return [];
-              // --- UPDATE: Filter for all supported markets before rendering ---
-              return Object.entries(event.markets).filter(([key]) => 
-                  key === 'soccer.match_odds' || 
-                  key.includes('total_goals') ||
-                  key === 'soccer.both_teams_to_score'
-              );
+              const supportedMarkets = [
+                  'soccer.match_odds', 
+                  'soccer.total_goals', 
+                  'soccer.total_goals_period_first_half', 
+                  'soccer.both_teams_to_score',
+                  'soccer.team_total_goals'
+              ];
+              return Object.entries(event.markets).filter(([key]) => supportedMarkets.includes(key));
           }, [event]);
 
           if (!event) return <div className="flex items-center justify-center h-full text-gray-400 p-4 text-center"><p className="text-xl">Select an event from the sidebar.</p></div>;
