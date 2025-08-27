@@ -304,29 +304,27 @@
 
           const groupedCompetitions = useMemo(() => competitions.reduce((acc, comp) => { const country = comp.category?.name?.toLowerCase() || 'other'; if (!acc[country]) acc[country] = {}; acc[country][comp.key] = comp; return acc; }, {}), [competitions]);
           
-          // --- FIX: Automatically select the first event when competitions load ---
           useEffect(() => {
               if (!loading && competitions.length > 0 && !selectedEvent) {
-                  const firstCompWithEvents = competitions.find(c => c.events && c.events.length > 0);
-                  if (firstCompWithEvents) {
-                      setSelectedEvent(firstCompWithEvents.events[0]);
-                  } else {
-                      // If no comps have events, expand the first one to trigger a fetch
-                      const firstCompKey = competitions[0]?.key;
-                      if (firstCompKey) {
-                          handleExpandCompetition(firstCompKey, true);
-                      }
+                  const firstPlayableComp = competitions.find(c => c.eventCount > 0);
+                  if (firstPlayableComp) {
+                      handleExpandCompetition(firstPlayableComp.key, true);
                   }
               }
-          }, [loading, competitions, selectedEvent]);
+          }, [loading, competitions]);
 
-          // --- FIX: Update selected event when events list changes ---
           useEffect(() => {
               if (selectedEvent) {
                   const allEvents = competitions.flatMap(c => c.events || []);
                   const updatedEvent = allEvents.find(e => e.id === selectedEvent.id);
                   if (updatedEvent) {
                       setSelectedEvent(updatedEvent);
+                  }
+              } else {
+                  // If selected event is gone (e.g. due to refresh), try to select first available
+                  const firstCompWithEvents = competitions.find(c => c.events && c.events.length > 0);
+                  if (firstCompWithEvents) {
+                      setSelectedEvent(firstCompWithEvents.events[0]);
                   }
               }
           }, [competitions]);
