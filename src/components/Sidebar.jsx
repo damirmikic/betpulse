@@ -17,7 +17,17 @@ export default function Sidebar() {
   useEffect(() => {
     fetchLeagues()
       .then((data) => {
-        setCategories(data.categories || []);
+        const sanitizedCategories = (data.categories || [])
+          .map((category) => ({
+            ...category,
+            competitions:
+              category.competitions?.filter(
+                (competition) => competition?.type !== "EVENT_TYPE_OUTRIGHT",
+              ) ?? [],
+          }))
+          .filter((category) => (category.competitions?.length ?? 0) > 0);
+
+        setCategories(sanitizedCategories);
         setLoading(false);
       })
       .catch((err) => {
@@ -39,9 +49,12 @@ export default function Sidebar() {
 
     try {
       const data = await fetchCompetitionEvents(competitionKey);
+      const filteredEvents = (data.events ?? []).filter(
+        (event) => event?.status === "TRADING",
+      );
       setEventsByCompetition((prev) => ({
         ...prev,
-        [competitionKey]: data.events ?? [],
+        [competitionKey]: filteredEvents,
       }));
     } catch (err) {
       setEventsError((prev) => ({
@@ -126,21 +139,25 @@ export default function Sidebar() {
                           {!competitionIsLoading && !competitionError && (
                             <ul className="space-y-2">
                               {competitionEvents.length > 0 ? (
-                                competitionEvents.map((event) => (
-                                  <li
-                                    key={event.id ?? `${event.home?.key}-${event.away?.key}`}
-                                    className="rounded border border-gray-200 bg-white p-2 shadow-sm"
-                                  >
-                                    <p className="font-semibold text-gray-700">
-                                      {event.home?.name ?? "Home"} vs {event.away?.name ?? "Away"}
-                                    </p>
-                                    {event.startTime && (
-                                      <p className="text-xs text-gray-500">
-                                        {new Date(event.startTime).toLocaleString()}
+                                competitionEvents.map((event) => {
+                                  const kickoffTime = event?.cutoffTime ?? event?.startTime;
+
+                                  return (
+                                    <li
+                                      key={event.id ?? `${event.home?.key}-${event.away?.key}`}
+                                      className="rounded border border-gray-200 bg-white p-2 shadow-sm"
+                                    >
+                                      <p className="font-semibold text-gray-700">
+                                        {event.home?.name ?? "Home"} vs {event.away?.name ?? "Away"}
                                       </p>
-                                    )}
-                                  </li>
-                                ))
+                                      {kickoffTime && (
+                                        <p className="text-xs text-gray-500">
+                                          {new Date(kickoffTime).toLocaleString()}
+                                        </p>
+                                      )}
+                                    </li>
+                                  );
+                                })
                               ) : (
                                 <li className="text-xs text-gray-500">No upcoming events.</li>
                               )}
