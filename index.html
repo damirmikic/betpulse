@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Betting Feed Provider</title>
+    <title>Betting Feed Provider - ZIP Distribution</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -40,11 +40,29 @@
                 </div>
             </div>
             
-            <div id="contentArea">
-                <div class="empty-state">
-                    <div style="font-size: 48px; margin-bottom: 16px;">⚽</div>
-                    <h3>No Competition Selected</h3>
-                    <p style="margin-top: 8px;">Select a competition from the sidebar to view events and odds</p>
+            <div style="display: grid; grid-template-columns: 1fr 320px; gap: 24px;">
+                <div id="contentArea">
+                    <div class="empty-state">
+                        <div style="font-size: 48px; margin-bottom: 16px;">⚽</div>
+                        <h3>No Competition Selected</h3>
+                        <p style="margin-top: 8px;">Select a competition from the sidebar to view events and odds</p>
+                    </div>
+                </div>
+                
+                <div class="odds-changes-panel">
+                    <div class="odds-changes-header">
+                        <h3>Odds Changes</h3>
+                        <div class="threshold-control">
+                            <label>Min. Change:</label>
+                            <input type="number" id="thresholdInput" value="5" min="1" max="50" step="1">
+                            <span>%</span>
+                        </div>
+                    </div>
+                    <div id="oddsChanges" class="odds-changes-list">
+                        <div class="odds-changes-empty">
+                            No changes detected yet. Changes will appear here when odds move by more than the threshold.
+                        </div>
+                    </div>
                 </div>
             </div>
         </main>
@@ -430,8 +448,9 @@
             });
             eventItem.classList.add('active');
             
-            // Display event details
+            // Display event details and start refresh
             displayEventDetails(event, competition);
+            startAutoRefresh();
         }
 
         // Generate mock events for demonstration
@@ -564,6 +583,96 @@
         let currentOddsMode = 'feed'; // 'feed' or 'implied'
         let currentEvent = null;
         let currentCompetition = null;
+        let oddsHistory = {}; // Store previous odds for comparison
+        let refreshInterval = null;
+        let changeThreshold = 5; // Default 5% change threshold
+
+        // Start auto-refresh
+        function startAutoRefresh() {
+            if (refreshInterval) clearInterval(refreshInterval);
+            refreshInterval = setInterval(() => {
+                if (currentEvent && currentCompetition) {
+                    refreshEventOdds();
+                }
+            }, 15000); // 15 seconds
+        }
+
+        // Refresh current event odds
+        async function refreshEventOdds() {
+            try {
+                const events = await fetchCompetitionEvents(currentCompetition);
+                const updatedEvent = events.find(e => 
+                    e.home?.name === currentEvent.home?.name && 
+                    e.away?.name === currentEvent.away?.name
+                );
+                
+                if (updatedEvent) {
+                    detectOddsChanges(currentEvent, updatedEvent);
+                    currentEvent = updatedEvent;
+                    renderOdds();
+                }
+            } catch (error) {
+                console.error('Refresh failed:', error);
+            }
+        }
+
+        // Detect and log odds changes
+        function detectOddsChanges(oldEvent, newEvent) {
+            const matchKey = `${oldEvent.home.name}-${oldEvent.away.name}`;
+            
+            const oldMarket = oldEvent.markets?.['soccer.match_odds']?.submarkets?.['period=ft'];
+            const newMarket = newEvent.markets?.['soccer.match_odds']?.submarkets?.['period=ft'];
+            
+            if (!oldMarket || !newMarket) return;
+            
+            ['home', 'draw', 'away'].forEach(outcome => {
+                const oldSel = oldMarket.selections?.find(s => s.outcome === outcome);
+                const newSel = newMarket.selections?.find(s => s.outcome === outcome);
+                
+                if (oldSel && newSel && oldSel.price !== newSel.price) {
+                    const change = ((newSel.price - oldSel.price) / oldSel.price) * 100;
+                    
+                    if (Math.abs(change) >= changeThreshold) {
+                        addOddsChange({
+                            time: new Date(),
+                            match: matchKey,
+                            market: `1X2 - ${outcome}`,
+                            oldOdds: oldSel.price,
+                            newOdds: newSel.price,
+                            change: change
+                        });
+                    }
+                }
+            });
+        }
+
+        // Add change to history
+        function addOddsChange(change) {
+            const changesContainer = document.getElementById('oddsChanges');
+            if (!changesContainer) return;
+            
+            const changeEl = document.createElement('div');
+            changeEl.className = 'odds-change-item';
+            changeEl.innerHTML = `
+                <div class="odds-change-header">
+                    <span class="odds-change-time">${change.time.toLocaleTimeString()}</span>
+                    <span class="odds-change-percentage ${change.change > 0 ? 'positive' : 'negative'}">
+                        ${change.change > 0 ? '+' : ''}${change.change.toFixed(1)}%
+                    </span>
+                </div>
+                <div class="odds-change-market">${change.market}</div>
+                <div class="odds-change-odds">
+                    ${change.oldOdds.toFixed(2)} → ${change.newOdds.toFixed(2)}
+                </div>
+            `;
+            
+            changesContainer.insertBefore(changeEl, changesContainer.firstChild);
+            
+            // Keep only last 20 changes
+            while (changesContainer.children.length > 20) {
+                changesContainer.removeChild(changesContainer.lastChild);
+            }
+        }
 
         // Display event details in central area
         function displayEventDetails(event, competition) {
@@ -730,6 +839,11 @@
             document.getElementById('impliedOddsBtn').classList.add('active');
             document.getElementById('feedOddsBtn').classList.remove('active');
             if (currentEvent) renderOdds();
+        });
+
+        // Threshold control
+        document.getElementById('thresholdInput').addEventListener('change', (e) => {
+            changeThreshold = parseFloat(e.target.value) || 5;
         });
 
         // Search functionality
