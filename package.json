@@ -1,0 +1,8 @@
+{
+  "name": "betting-feed-netlify",
+  "version": "1.0.0",
+  "description": "Betting feed with Cloudbet API proxy",
+  "dependencies": {
+    "node-fetch": "^2.6.7"
+  }
+}
