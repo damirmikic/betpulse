@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Betting Feed Provider - ZIP Distribution</title>
+    <title>Betting Feed Provider</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@300;400;600;700&display=swap');
         
@@ -160,7 +160,6 @@
         .competition-item.active {
             background: var(--bg-tertiary);
             border-left-color: var(--accent-primary);
-            box-shadow: var(--shadow-glow);
         }
         
         .competition-name {
@@ -187,6 +186,61 @@
         .competition-item.active .event-count {
             background: rgba(0, 255, 136, 0.15);
             color: var(--accent-primary);
+        }
+        
+        .events-sublist {
+            display: none;
+            background: rgba(0, 0, 0, 0.2);
+            border-left: 2px solid var(--border-color);
+            margin-left: 20px;
+        }
+        
+        .events-sublist.expanded {
+            display: block;
+        }
+        
+        .event-item {
+            padding: 10px 20px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border-left: 3px solid transparent;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+        
+        .event-item:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border-left-color: var(--accent-secondary);
+        }
+        
+        .event-item.active {
+            background: var(--bg-tertiary);
+            color: var(--accent-primary);
+            border-left-color: var(--accent-primary);
+            font-weight: 500;
+        }
+        
+        .event-item-teams {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .event-item-time {
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-top: 2px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .expand-icon {
+            transition: transform 0.2s ease;
+            color: var(--text-muted);
+        }
+        
+        .competition-item.expanded .expand-icon {
+            transform: rotate(90deg);
         }
         
         /* Main Content */
@@ -695,7 +749,7 @@
             return prob;
         }
 
-        // Load competitions into sidebar
+        // Load competitions into sidebar with events
         function loadCompetitions() {
             const list = document.getElementById('competitionsList');
             list.innerHTML = '';
@@ -714,15 +768,130 @@
                     item.className = 'competition-item';
                     item.dataset.key = comp.key;
                     item.innerHTML = `
-                        <span class="competition-name">${comp.name}</span>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span class="expand-icon">▶</span>
+                            <span class="competition-name">${comp.name}</span>
+                        </div>
                         <span class="event-count">${comp.eventCount}</span>
                     `;
-                    item.addEventListener('click', () => loadCompetitionData(comp));
+                    
+                    // Create events container
+                    const eventsContainer = document.createElement('div');
+                    eventsContainer.className = 'events-sublist';
+                    eventsContainer.dataset.competitionKey = comp.key;
+                    
+                    // Click to expand/collapse and load events
+                    item.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        toggleCompetition(item, eventsContainer, comp);
+                    });
+                    
                     regionGroup.appendChild(item);
+                    regionGroup.appendChild(eventsContainer);
                 });
 
                 list.appendChild(regionGroup);
             });
+        }
+
+        // Toggle competition expansion and load events
+        async function toggleCompetition(competitionItem, eventsContainer, competition) {
+            const isExpanded = competitionItem.classList.contains('expanded');
+            
+            // Collapse all other competitions
+            document.querySelectorAll('.competition-item').forEach(item => {
+                item.classList.remove('expanded');
+            });
+            document.querySelectorAll('.events-sublist').forEach(list => {
+                list.classList.remove('expanded');
+            });
+            
+            if (isExpanded) {
+                // Just collapse
+                return;
+            }
+            
+            // Expand this competition
+            competitionItem.classList.add('expanded');
+            eventsContainer.classList.add('expanded');
+            
+            // Load events if not already loaded
+            if (eventsContainer.children.length === 0) {
+                eventsContainer.innerHTML = '<div style="padding: 10px 20px; color: var(--text-muted); font-size: 12px;">Loading events...</div>';
+                
+                try {
+                    const events = await fetchCompetitionEvents(competition);
+                    renderEventsList(eventsContainer, events, competition);
+                } catch (error) {
+                    eventsContainer.innerHTML = `<div style="padding: 10px 20px; color: var(--text-muted); font-size: 12px;">Error loading events</div>`;
+                }
+            }
+        }
+
+        // Fetch events for a competition
+        async function fetchCompetitionEvents(competition) {
+            const isNetlify = window.location.hostname.includes('netlify.app') || 
+                             window.location.hostname.includes('netlify.com');
+            
+            if (isNetlify) {
+                const apiUrl = `/.netlify/functions/proxy/${competition.key}`;
+                const response = await fetch(apiUrl);
+                if (!response.ok) throw new Error(`API returned ${response.status}`);
+                const data = await response.json();
+                return data.events?.filter(event => 
+                    event.type === 'EVENT_TYPE_EVENT' &&
+                    event.home && event.away &&
+                    event.markets?.['soccer.match_odds']
+                ) || [];
+            } else {
+                return generateMockEvents(competition);
+            }
+        }
+
+        // Render events list in sidebar
+        function renderEventsList(container, events, competition) {
+            if (events.length === 0) {
+                container.innerHTML = '<div style="padding: 10px 20px; color: var(--text-muted); font-size: 12px;">No events available</div>';
+                return;
+            }
+            
+            container.innerHTML = '';
+            events.forEach(event => {
+                const eventItem = document.createElement('div');
+                eventItem.className = 'event-item';
+                
+                const eventDate = new Date(event.cutoffTime);
+                const formattedTime = eventDate.toLocaleString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                
+                eventItem.innerHTML = `
+                    <div class="event-item-teams">${event.home.name} vs ${event.away.name}</div>
+                    <div class="event-item-time">${formattedTime}</div>
+                `;
+                
+                eventItem.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    selectEvent(eventItem, event, competition);
+                });
+                
+                container.appendChild(eventItem);
+            });
+        }
+
+        // Select and display event
+        function selectEvent(eventItem, event, competition) {
+            // Update active state
+            document.querySelectorAll('.event-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            eventItem.classList.add('active');
+            
+            // Display event details
+            displayEventDetails(event, competition);
         }
 
         // Generate mock events for demonstration
@@ -851,122 +1020,119 @@
             }
         }
 
-        // Render events with ZIP calculations
-        function renderEvents(events) {
+        // Display event details in central area
+        function displayEventDetails(event, competition) {
+            document.getElementById('contentTitle').textContent = `${event.home.name} vs ${event.away.name}`;
+            
+            const eventDate = new Date(event.cutoffTime);
+            const formattedDate = eventDate.toLocaleString('en-US', {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            
+            document.getElementById('contentSubtitle').textContent = `${competition.name} • ${formattedDate}`;
+            
             const contentArea = document.getElementById('contentArea');
-            const eventsHTML = events.map(event => {
-                // Get match odds
-                const matchOddsMarket = event.markets?.['soccer.match_odds']?.submarkets?.['period=ft'];
-                const totalGoalsMarket = event.markets?.['soccer.total_goals']?.submarkets?.['period=ft'];
+            
+            // Get markets
+            const matchOddsMarket = event.markets?.['soccer.match_odds']?.submarkets?.['period=ft'];
+            const totalGoalsMarket = event.markets?.['soccer.total_goals']?.submarkets?.['period=ft'];
+            
+            let html = '<div style="max-width: 1200px;">';
+            
+            // Match Odds Section
+            if (matchOddsMarket) {
+                const homeSelection = matchOddsMarket.selections?.find(s => s.outcome === 'home');
+                const drawSelection = matchOddsMarket.selections?.find(s => s.outcome === 'draw');
+                const awaySelection = matchOddsMarket.selections?.find(s => s.outcome === 'away');
                 
-                if (!matchOddsMarket) return '';
-
-                const homeOdds = matchOddsMarket.selections?.find(s => s.outcome === 'home')?.price || 2.0;
-                const awayOdds = matchOddsMarket.selections?.find(s => s.outcome === 'away')?.price || 2.0;
-                const drawOdds = matchOddsMarket.selections?.find(s => s.outcome === 'draw')?.price || 3.0;
-
-                // Get total goals markets
-                const over25 = totalGoalsMarket?.selections?.find(s => s.outcome === 'over' && s.params === 'total=2.5');
-                const under25 = totalGoalsMarket?.selections?.find(s => s.outcome === 'under' && s.params === 'total=2.5');
-
-                const zipResults = calculateZIPOdds(homeOdds, awayOdds, drawOdds);
-
-                const eventDate = new Date(event.cutoffTime);
-                const formattedDate = eventDate.toLocaleString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                });
-
-                return `
-                    <div class="event-card">
-                        <div class="event-header">
-                            <div class="event-time">${formattedDate}</div>
-                        </div>
-                        
-                        <div class="event-teams">
-                            <div class="team">
-                                <span class="team-name">${event.home?.name || 'Home Team'}</span>
-                            </div>
-                            <div class="team">
-                                <span class="team-name">${event.away?.name || 'Away Team'}</span>
-                            </div>
-                        </div>
-
+                html += `
+                    <div style="margin-bottom: 32px;">
+                        <h3 style="font-size: 18px; margin-bottom: 16px; color: var(--accent-primary);">Match Odds (1X2)</h3>
                         <div class="markets-grid">
-                            <div class="market-card">
-                                <div class="market-label">Home Win</div>
-                                <div class="market-odds">${homeOdds.toFixed(2)}</div>
-                                <div class="market-probability">${(zipResults.markets.home_win.probability * 100).toFixed(1)}%</div>
-                            </div>
-                            <div class="market-card">
-                                <div class="market-label">Draw</div>
-                                <div class="market-odds">${drawOdds.toFixed(2)}</div>
-                                <div class="market-probability">${(zipResults.markets.draw.probability * 100).toFixed(1)}%</div>
-                            </div>
-                            <div class="market-card">
-                                <div class="market-label">Away Win</div>
-                                <div class="market-odds">${awayOdds.toFixed(2)}</div>
-                                <div class="market-probability">${(zipResults.markets.away_win.probability * 100).toFixed(1)}%</div>
-                            </div>
-                            <div class="market-card">
-                                <div class="market-label">Over 2.5 Goals (ZIP)</div>
-                                <div class="market-odds">${zipResults.markets.over_2_5.odds.toFixed(2)}</div>
-                                <div class="market-probability">${(zipResults.markets.over_2_5.probability * 100).toFixed(1)}%</div>
-                            </div>
-                            <div class="market-card">
-                                <div class="market-label">Under 2.5 Goals (ZIP)</div>
-                                <div class="market-odds">${zipResults.markets.under_2_5.odds.toFixed(2)}</div>
-                                <div class="market-probability">${(zipResults.markets.under_2_5.probability * 100).toFixed(1)}%</div>
-                            </div>
-                            <div class="market-card">
-                                <div class="market-label">BTTS Yes (ZIP)</div>
-                                <div class="market-odds">${zipResults.markets.btts_yes.odds.toFixed(2)}</div>
-                                <div class="market-probability">${(zipResults.markets.btts_yes.probability * 100).toFixed(1)}%</div>
-                            </div>
-                        </div>
-
-                        ${over25 && under25 ? `
-                        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-color);">
-                            <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px;">Bookmaker O/U 2.5</div>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                            ${homeSelection ? `
                                 <div class="market-card">
-                                    <div class="market-label">Over 2.5</div>
-                                    <div class="market-odds">${over25.price.toFixed(2)}</div>
-                                    <div class="market-probability">${(over25.probability * 100).toFixed(1)}%</div>
+                                    <div class="market-label">Home Win</div>
+                                    <div class="market-odds">${homeSelection.price.toFixed(2)}</div>
+                                    <div class="market-probability">${(homeSelection.probability * 100).toFixed(1)}%</div>
                                 </div>
+                            ` : ''}
+                            ${drawSelection ? `
                                 <div class="market-card">
-                                    <div class="market-label">Under 2.5</div>
-                                    <div class="market-odds">${under25.price.toFixed(2)}</div>
-                                    <div class="market-probability">${(under25.probability * 100).toFixed(1)}%</div>
+                                    <div class="market-label">Draw</div>
+                                    <div class="market-odds">${drawSelection.price.toFixed(2)}</div>
+                                    <div class="market-probability">${(drawSelection.probability * 100).toFixed(1)}%</div>
                                 </div>
-                            </div>
-                        </div>
-                        ` : ''}
-
-                        <div class="zip-info">
-                            <div class="zip-info-title">ZIP Distribution Parameters</div>
-                            <div class="zip-params">
-                                <div class="zip-param">
-                                    <span class="zip-param-label">Home λ</span>
-                                    <span class="zip-param-value">${zipResults.zipParams.homeLambda}</span>
+                            ` : ''}
+                            ${awaySelection ? `
+                                <div class="market-card">
+                                    <div class="market-label">Away Win</div>
+                                    <div class="market-odds">${awaySelection.price.toFixed(2)}</div>
+                                    <div class="market-probability">${(awaySelection.probability * 100).toFixed(1)}%</div>
                                 </div>
-                                <div class="zip-param">
-                                    <span class="zip-param-label">Away λ</span>
-                                    <span class="zip-param-value">${zipResults.zipParams.awayLambda}</span>
-                                </div>
-                                <div class="zip-param">
-                                    <span class="zip-param-label">Zero Inflation (π)</span>
-                                    <span class="zip-param-value">${zipResults.zipParams.pi}</span>
-                                </div>
-                            </div>
+                            ` : ''}
                         </div>
                     </div>
                 `;
-            }).join('');
-
-            contentArea.innerHTML = `<div class="events-grid">${eventsHTML}</div>`;
+            }
+            
+            // Total Goals Section
+            if (totalGoalsMarket && totalGoalsMarket.selections) {
+                // Group by total value
+                const goalLines = {};
+                totalGoalsMarket.selections.forEach(sel => {
+                    const match = sel.params.match(/total=([\d.]+)/);
+                    if (match) {
+                        const total = match[1];
+                        if (!goalLines[total]) goalLines[total] = {};
+                        goalLines[total][sel.outcome] = sel;
+                    }
+                });
+                
+                html += `
+                    <div style="margin-bottom: 32px;">
+                        <h3 style="font-size: 18px; margin-bottom: 16px; color: var(--accent-primary);">Total Goals</h3>
+                `;
+                
+                // Display popular lines
+                const popularLines = ['2.5', '1.5', '3.5', '2.75', '3.25'];
+                popularLines.forEach(line => {
+                    if (goalLines[line]) {
+                        const over = goalLines[line].over;
+                        const under = goalLines[line].under;
+                        
+                        html += `
+                            <div style="margin-bottom: 16px;">
+                                <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px;">Over/Under ${line}</div>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                    ${over ? `
+                                        <div class="market-card">
+                                            <div class="market-label">Over ${line}</div>
+                                            <div class="market-odds">${over.price.toFixed(2)}</div>
+                                            <div class="market-probability">${(over.probability * 100).toFixed(1)}%</div>
+                                        </div>
+                                    ` : ''}
+                                    ${under ? `
+                                        <div class="market-card">
+                                            <div class="market-label">Under ${line}</div>
+                                            <div class="market-odds">${under.price.toFixed(2)}</div>
+                                            <div class="market-probability">${(under.probability * 100).toFixed(1)}%</div>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        `;
+                    }
+                });
+                
+                html += `</div>`;
+            }
+            
+            html += '</div>';
+            contentArea.innerHTML = html;
         }
 
         // Search functionality
