@@ -30,6 +30,7 @@
             height: 6px;
             border-radius: 50%;
             background: var(--text-muted);
+            transition: all 0.3s ease;
         }
         .timer-dot.active {
             background: var(--accent-primary);
@@ -37,23 +38,34 @@
         }
         .refresh-icon {
             font-size: 10px;
+            transition: transform 0.5s ease;
         }
         .refresh-icon.spinning {
             animation: spin 1s linear infinite;
+        }
+        /* Update flash animation */
+        @keyframes highlightUpdate {
+            0% { color: var(--accent-primary); text-shadow: 0 0 5px var(--accent-primary); }
+            100% { color: inherit; text-shadow: none; }
+        }
+        .updated-value {
+            animation: highlightUpdate 1s ease-out;
         }
     </style>
 </head>
 <body>
     <div class="container">
+        <!-- Sidebar -->
         <aside class="sidebar">
             <div class="sidebar-header">
                 <h1>Betting Feed</h1>
                 <p>Zero-Inflated Poisson</p>
                 
+                <!-- Global Timer Location -->
                 <div class="global-timer">
                     <div class="timer-status">
                         <span id="timerDot" class="timer-dot"></span>
-                        <span id="refreshText">Idle</span>
+                        <span id="refreshText">Initializing...</span>
                     </div>
                     <span class="refresh-icon">↻</span>
                 </div>
@@ -64,10 +76,11 @@
             </div>
             
             <div class="competitions-list" id="competitionsList">
-                <div class="loading-state" style="padding: 20px; font-size: 12px;">Initializing...</div>
+                <div class="loading-state" style="padding: 20px; font-size: 12px;">Loading competitions...</div>
             </div>
         </aside>
         
+        <!-- Main Content -->
         <main class="main-content">
             <div class="content-header">
                 <div class="content-header-text">
@@ -88,7 +101,8 @@
                     <div class="empty-state">
                         <div style="font-size: 48px; margin-bottom: 16px;">⚽</div>
                         <h3>No Competition Selected</h3>
-                        <p style="margin-top: 8px;">Select a competition to start monitoring odds</p>
+                        <p style="margin-top: 8px;">Select a competition to start monitoring odds.</p>
+                        <p style="font-size: 12px; color: var(--text-muted); margin-top: 12px;">Global refresh is active.</p>
                     </div>
                 </div>
                 
@@ -103,8 +117,7 @@
                     </div>
                     <div id="oddsChanges" class="odds-changes-list">
                         <div class="odds-changes-empty">
-                            No changes detected yet. <br>
-                            Select a competition to start monitoring all matches.
+                            System is monitoring active competitions...
                         </div>
                     </div>
                 </div>
@@ -118,48 +131,121 @@
         // ==========================================
         const API_PROXY_URL = '/.netlify/functions/proxy';
         
+        // App State
         let currentOddsMode = 'feed'; 
-        let currentEvent = null;            // The specific match being viewed
-        let currentCompetition = null;      // The active competition being monitored
-        let currentCompetitionEvents = [];  // Store ALL events in the competition for comparison
-        
+        let currentEvent = null;            // Specific match being viewed
+        let currentCompetition = null;      // Active competition
+        let currentCompetitionEvents = [];  // Baseline data for diffing
+        let isNetlify = false;              // Environment check
+
         // Timer State
-        let countdownHandle = null;
+        let globalTimerHandle = null;
         let secondsRemaining = 15;
         const REFRESH_SECONDS = 15;
         let changeThreshold = 2.0;
 
         // ==========================================
-        // 1. DATA FETCHING (COMPETITIONS)
+        // 1. INITIALIZATION & GLOBAL TIMER
         // ==========================================
 
         async function initApp() {
-            const list = document.getElementById('competitionsList');
-            list.innerHTML = '<div class="loading-state" style="padding:20px;">Loading competitions...</div>';
+            // Check Environment
+            isNetlify = window.location.hostname.includes('netlify.app') || 
+                       window.location.hostname.includes('netlify.com');
 
+            // 1. Load Initial Data
+            await refreshCompetitionsList(true); // true = first render
+
+            // 2. Start Global Heartbeat
+            startGlobalTimer();
+        }
+
+        function startGlobalTimer() {
+            if (globalTimerHandle) clearInterval(globalTimerHandle);
+            
+            // Activate UI
+            document.getElementById('timerDot').classList.add('active');
+            secondsRemaining = REFRESH_SECONDS;
+            updateTimerUI(false);
+            
+            // The Loop
+            globalTimerHandle = setInterval(() => {
+                secondsRemaining--;
+                
+                if (secondsRemaining <= 0) {
+                    performGlobalUpdate();
+                    secondsRemaining = REFRESH_SECONDS;
+                }
+                
+                updateTimerUI(secondsRemaining === REFRESH_SECONDS);
+            }, 1000);
+        }
+
+        async function performGlobalUpdate() {
+            console.log("⚡ Triggering Global Update");
+            
+            // Parallel Update: 
+            // 1. Refresh Sidebar Counts (Global)
+            // 2. Refresh Active Competition Odds (Local to View)
+            
+            const tasks = [refreshCompetitionsList(false)]; // false = update in place
+            
+            if (currentCompetition) {
+                tasks.push(refreshActiveCompetition());
+            }
+
+            await Promise.allSettled(tasks);
+        }
+
+        function updateTimerUI(isFetching) {
+            const textEl = document.getElementById('refreshText');
+            const iconEl = document.querySelector('.refresh-icon');
+            
+            if (isFetching || secondsRemaining === 0) {
+                textEl.textContent = "Syncing...";
+                iconEl.classList.add('spinning');
+            } else {
+                textEl.textContent = `Next scan: ${secondsRemaining}s`;
+                iconEl.classList.remove('spinning');
+            }
+        }
+
+        // ==========================================
+        // 2. COMPETITION LIST LOGIC (SIDEBAR)
+        // ==========================================
+
+        async function refreshCompetitionsList(isFirstRender) {
+            const list = document.getElementById('competitionsList');
+            
             try {
-                const isNetlify = window.location.hostname.includes('netlify.app') || 
-                                 window.location.hostname.includes('netlify.com');
+                let rawData = [];
                 
                 if (isNetlify) {
                     const response = await fetch(`${API_PROXY_URL}/soccer`);
                     if (!response.ok) throw new Error(`API Error: ${response.status}`);
                     const data = await response.json();
                     
-                    if (data.categories) renderSidebar(data.categories);
-                    else if (data.competitions) renderSidebar(groupCompetitions(data.competitions));
-                    else list.innerHTML = '<div class="empty-state">No competitions found</div>';
+                    // Normalize Data
+                    if (data.categories) rawData = data.categories; // Already grouped
+                    else if (data.competitions) rawData = groupCompetitions(data.competitions); // Needs grouping
                 } else {
-                    console.warn("Local Dev: Using mock data.");
-                    renderSidebar(generateMockCategories());
+                    // Local Mock
+                    rawData = generateMockCategories();
+                }
+
+                if (isFirstRender) {
+                    renderSidebar(rawData);
+                } else {
+                    updateSidebarCounts(rawData);
                 }
 
             } catch (error) {
-                console.error("Init Error:", error);
-                list.innerHTML = `<div class="empty-state" style="color: #ff4444">Error: ${error.message}</div>`;
+                console.error("Sidebar Refresh Error:", error);
+                if (isFirstRender) list.innerHTML = `<div class="empty-state" style="color: #ff4444">Error: ${error.message}</div>`;
             }
         }
 
+        // Group flat list into categories
         function groupCompetitions(competitions) {
             const groups = {};
             competitions.forEach(comp => {
@@ -173,10 +259,6 @@
                 competitions: groups[cat].sort((a, b) => (b.eventCount || 0) - (a.eventCount || 0))
             }));
         }
-
-        // ==========================================
-        // 2. UI RENDERING & INTERACTION
-        // ==========================================
 
         function renderSidebar(categories) {
             const list = document.getElementById('competitionsList');
@@ -198,7 +280,8 @@
                 category.competitions.forEach(comp => {
                     const item = document.createElement('div');
                     item.className = 'competition-item';
-                    item.dataset.key = comp.key;
+                    item.dataset.key = comp.key; // Critical for finding it later
+                    
                     item.innerHTML = `
                         <div style="display: flex; align-items: center; gap: 8px;">
                             <span class="expand-icon">▶</span>
@@ -223,40 +306,139 @@
             });
         }
 
+        // NON-DESTRUCTIVE Update
+        function updateSidebarCounts(categories) {
+            categories.forEach(cat => {
+                cat.competitions.forEach(comp => {
+                    // Find existing element by key
+                    const item = document.querySelector(`.competition-item[data-key="${comp.key}"]`);
+                    if (item) {
+                        const countEl = item.querySelector('.event-count');
+                        const currentCount = parseInt(countEl.textContent);
+                        const newCount = comp.eventCount || 0;
+
+                        if (currentCount !== newCount) {
+                            countEl.textContent = newCount;
+                            // Visual flair for update
+                            countEl.classList.remove('updated-value');
+                            void countEl.offsetWidth; // Trigger reflow
+                            countEl.classList.add('updated-value');
+                        }
+                    }
+                });
+            });
+        }
+
         async function toggleCompetition(item, container, competition) {
             const isExpanded = item.classList.contains('expanded');
             
-            // UI Cleanup
+            // Collapse others
             document.querySelectorAll('.competition-item').forEach(i => i.classList.remove('expanded'));
             document.querySelectorAll('.events-sublist').forEach(l => l.classList.remove('expanded'));
             
             if (isExpanded) {
-                // Clicking same one collapses it and stops monitoring
-                stopAutoRefresh();
                 currentCompetition = null;
                 return;
             }
             
-            // Expand and Activate
+            // Expand
             item.classList.add('expanded');
             container.classList.add('expanded');
-            
-            // Set Global Competition State
             currentCompetition = competition;
-            startAutoRefresh(); // Start monitoring immediately!
 
-            // Initial Load
-            if (container.children.length === 0) {
-                container.innerHTML = '<div style="padding: 10px 20px; color: var(--text-muted); font-size: 12px;">Loading events...</div>';
-                try {
-                    const events = await fetchCompetitionEvents(competition);
-                    currentCompetitionEvents = events; // Store baseline for diffing
-                    renderEventsList(container, events, competition);
-                } catch (error) {
-                    container.innerHTML = `<div style="padding: 10px 20px; color: var(--text-muted); font-size: 12px;">Error loading events</div>`;
-                }
+            // Load data immediately
+            container.innerHTML = '<div style="padding: 10px 20px; color: var(--text-muted); font-size: 12px;">Loading events...</div>';
+            
+            try {
+                // Initial Fetch
+                const events = await fetchCompetitionEvents(competition);
+                currentCompetitionEvents = events; // Set baseline
+                renderEventsList(container, events, competition);
+            } catch (error) {
+                container.innerHTML = `<div style="padding: 10px 20px; color: var(--text-muted); font-size: 12px;">Error loading events</div>`;
             }
         }
+
+        // ==========================================
+        // 3. ACTIVE VIEW LOGIC & ODDS DIFF
+        // ==========================================
+
+        async function refreshActiveCompetition() {
+            if (!currentCompetition) return;
+
+            try {
+                // 1. Fetch fresh data for the active competition
+                const freshEvents = await fetchCompetitionEvents(currentCompetition);
+                
+                // 2. Diff against old data to find changes
+                freshEvents.forEach(freshEvent => {
+                    const oldEvent = currentCompetitionEvents.find(e => 
+                        e.home.name === freshEvent.home.name && 
+                        e.away.name === freshEvent.away.name
+                    );
+
+                    if (oldEvent) {
+                        detectOddsChanges(oldEvent, freshEvent);
+                    }
+                });
+
+                // 3. Update Baseline
+                currentCompetitionEvents = freshEvents;
+
+                // 4. Update Main View (if a match is selected)
+                if (currentEvent) {
+                    const freshCurrentEvent = freshEvents.find(e => 
+                        e.home.name === currentEvent.home.name && 
+                        e.away.name === currentEvent.away.name
+                    );
+                    
+                    if (freshCurrentEvent) {
+                        currentEvent = freshCurrentEvent;
+                        renderOdds(); // Re-render central panel
+                    }
+                }
+
+                // 5. Update Sidebar List (Events list inside competition)
+                // Note: We don't rebuild the whole sublist to keep scrolling, 
+                // but we could refresh the data if needed. For now, we trust the main flow.
+
+            } catch (error) {
+                console.warn('Competition refresh failed:', error);
+            }
+        }
+
+        function detectOddsChanges(oldEvent, newEvent) {
+            const matchKey = `${oldEvent.home.name} vs ${oldEvent.away.name}`;
+            const getMarket = (e) => e.markets?.['soccer.match_odds']?.submarkets?.['period=ft'];
+            const oldMarket = getMarket(oldEvent);
+            const newMarket = getMarket(newEvent);
+            
+            if (!oldMarket || !newMarket) return;
+            
+            ['home', 'draw', 'away'].forEach(outcome => {
+                const oldSel = oldMarket.selections?.find(s => s.outcome === outcome);
+                const newSel = newMarket.selections?.find(s => s.outcome === outcome);
+                
+                if (oldSel && newSel && oldSel.price !== newSel.price) {
+                    const change = ((newSel.price - oldSel.price) / oldSel.price) * 100;
+                    
+                    if (Math.abs(change) >= changeThreshold) {
+                        addOddsChange({
+                            time: new Date(),
+                            match: matchKey,
+                            market: `1X2 - ${outcome.toUpperCase()}`,
+                            oldOdds: oldSel.price,
+                            newOdds: newSel.price,
+                            change: change
+                        });
+                    }
+                }
+            });
+        }
+
+        // ==========================================
+        // 4. RENDERERS & UTILS
+        // ==========================================
 
         function renderEventsList(container, events, competition) {
             container.innerHTML = events.length ? '' : '<div style="padding: 10px 20px; color: var(--text-muted); font-size: 12px;">No events available</div>';
@@ -264,9 +446,6 @@
             events.forEach(event => {
                 const eventItem = document.createElement('div');
                 eventItem.className = 'event-item';
-                // Add ID to find it later easily
-                eventItem.dataset.matchId = `${event.home.name}-${event.away.name}`; 
-                
                 const time = new Date(event.cutoffTime).toLocaleString('en-US', {
                     month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
                 });
@@ -291,181 +470,9 @@
             displayEventDetails(event, competition);
         }
 
-        // ==========================================
-        // 3. GLOBAL ODDS MONITORING
-        // ==========================================
-
-        function startAutoRefresh() {
-            if (countdownHandle) clearInterval(countdownHandle);
-            
-            document.getElementById('timerDot').classList.add('active');
-            secondsRemaining = REFRESH_SECONDS;
-            updateRefreshUI(false);
-            
-            countdownHandle = setInterval(() => {
-                secondsRemaining--;
-                
-                if (secondsRemaining <= 0) {
-                    refreshCompetitionOdds(); // The global update function
-                    secondsRemaining = REFRESH_SECONDS;
-                }
-                
-                updateRefreshUI(secondsRemaining === REFRESH_SECONDS);
-            }, 1000);
-        }
-
-        function stopAutoRefresh() {
-            if (countdownHandle) clearInterval(countdownHandle);
-            document.getElementById('timerDot').classList.remove('active');
-            document.getElementById('refreshText').textContent = "Idle";
-            document.querySelector('.refresh-icon').classList.remove('spinning');
-        }
-
-        function updateRefreshUI(isFetching) {
-            const textEl = document.getElementById('refreshText');
-            const iconEl = document.querySelector('.refresh-icon');
-            
-            if (isFetching || secondsRemaining === 0) {
-                textEl.textContent = `Updating ${currentCompetition ? currentCompetition.name : ''}...`;
-                iconEl.classList.add('spinning');
-            } else {
-                textEl.textContent = `Next scan: ${secondsRemaining}s`;
-                iconEl.classList.remove('spinning');
-            }
-        }
-
-        async function refreshCompetitionOdds() {
-            if (!currentCompetition) return;
-
-            try {
-                // 1. Fetch ALL events for the active competition
-                const freshEvents = await fetchCompetitionEvents(currentCompetition);
-                
-                // 2. Loop through EVERY fresh event to check for changes
-                freshEvents.forEach(newEvent => {
-                    // Find the matching old event from our stored state
-                    const oldEvent = currentCompetitionEvents.find(e => 
-                        e.home.name === newEvent.home.name && 
-                        e.away.name === newEvent.away.name
-                    );
-
-                    if (oldEvent) {
-                        detectOddsChanges(oldEvent, newEvent);
-                    }
-                });
-
-                // 3. Update the global state with new data
-                currentCompetitionEvents = freshEvents;
-
-                // 4. Update the Main View ONLY if the user is looking at a specific match
-                if (currentEvent) {
-                    const updatedCurrentEvent = freshEvents.find(e => 
-                        e.home.name === currentEvent.home.name && 
-                        e.away.name === currentEvent.away.name
-                    );
-                    
-                    if (updatedCurrentEvent) {
-                        currentEvent = updatedCurrentEvent;
-                        renderOdds(); // Re-render the center panel
-                    }
-                }
-
-            } catch (error) {
-                console.error('Global Refresh failed:', error);
-            }
-        }
-
-        // ==========================================
-        // 4. CHANGE DETECTION
-        // ==========================================
-
-        function detectOddsChanges(oldEvent, newEvent) {
-            const matchKey = `${oldEvent.home.name} vs ${oldEvent.away.name}`;
-            
-            const getMarket = (e) => e.markets?.['soccer.match_odds']?.submarkets?.['period=ft'];
-            const oldMarket = getMarket(oldEvent);
-            const newMarket = getMarket(newEvent);
-            
-            if (!oldMarket || !newMarket) return;
-            
-            ['home', 'draw', 'away'].forEach(outcome => {
-                const oldSel = oldMarket.selections?.find(s => s.outcome === outcome);
-                const newSel = newMarket.selections?.find(s => s.outcome === outcome);
-                
-                if (oldSel && newSel && oldSel.price !== newSel.price) {
-                    const change = ((newSel.price - oldSel.price) / oldSel.price) * 100;
-                    
-                    if (Math.abs(change) >= changeThreshold) {
-                        addOddsChange({
-                            time: new Date(),
-                            match: matchKey, // Shows which match changed!
-                            market: `1X2 - ${outcome.toUpperCase()}`,
-                            oldOdds: oldSel.price,
-                            newOdds: newSel.price,
-                            change: change
-                        });
-                    }
-                }
-            });
-        }
-
-        function addOddsChange(change) {
-            const container = document.getElementById('oddsChanges');
-            const emptyMsg = container.querySelector('.odds-changes-empty');
-            if (emptyMsg) emptyMsg.remove();
-            
-            const changeEl = document.createElement('div');
-            changeEl.className = 'odds-change-item';
-            
-            // Format time
-            const timeStr = change.time.toLocaleTimeString([], { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
-
-            changeEl.innerHTML = `
-                <div class="odds-change-header">
-                    <span class="odds-change-time">${timeStr}</span>
-                    <span class="odds-change-percentage ${change.change > 0 ? 'positive' : 'negative'}">
-                        ${change.change > 0 ? '+' : ''}${change.change.toFixed(1)}%
-                    </span>
-                </div>
-                <div style="font-size: 11px; color: var(--accent-primary); margin-bottom: 2px;">${change.match}</div>
-                <div class="odds-change-market">${change.market}</div>
-                <div class="odds-change-odds">
-                    ${change.oldOdds.toFixed(2)} → ${change.newOdds.toFixed(2)}
-                </div>
-            `;
-            
-            container.insertBefore(changeEl, container.firstChild);
-            
-            if (container.children.length > 50) { // Increased history limit
-                container.removeChild(container.lastChild);
-            }
-        }
-
-        // ==========================================
-        // 5. HELPER FUNCTIONS
-        // ==========================================
-
-        async function fetchCompetitionEvents(competition) {
-            const isNetlify = window.location.hostname.includes('netlify.app') || 
-                             window.location.hostname.includes('netlify.com');
-            
-            if (isNetlify) {
-                const apiUrl = `${API_PROXY_URL}/${competition.key}`;
-                const response = await fetch(apiUrl);
-                if (!response.ok) throw new Error(response.statusText);
-                const data = await response.json();
-                return data.events?.filter(e => 
-                    e.type === 'EVENT_TYPE_EVENT' && e.home && e.away && e.markets?.['soccer.match_odds']
-                ) || [];
-            } else {
-                return generateMockEvents(competition);
-            }
-        }
-
         function displayEventDetails(event, competition) {
             currentEvent = event;
             document.getElementById('contentTitle').textContent = `${event.home.name} vs ${event.away.name}`;
-            
             const dateStr = new Date(event.cutoffTime).toLocaleString('en-US', {
                 weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
             });
@@ -522,7 +529,6 @@
                         const raw = [lines[line].over.price, lines[line].under.price];
                         const disp = currentOddsMode === 'implied' ? toImpliedOdds(raw) : raw;
                         const probs = disp.map(o => 1/o);
-                        
                         html += `
                             <div class="goal-line-section">
                                 <div class="goal-line-header">Over/Under ${line}</div>
@@ -549,25 +555,66 @@
                 </div>`;
         }
 
-        // Utils
+        // Odds Change Logger
+        function addOddsChange(change) {
+            const container = document.getElementById('oddsChanges');
+            const emptyMsg = container.querySelector('.odds-changes-empty');
+            if (emptyMsg) emptyMsg.remove();
+            
+            const changeEl = document.createElement('div');
+            changeEl.className = 'odds-change-item';
+            const timeStr = change.time.toLocaleTimeString([], { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+            changeEl.innerHTML = `
+                <div class="odds-change-header">
+                    <span class="odds-change-time">${timeStr}</span>
+                    <span class="odds-change-percentage ${change.change > 0 ? 'positive' : 'negative'}">
+                        ${change.change > 0 ? '+' : ''}${change.change.toFixed(1)}%
+                    </span>
+                </div>
+                <div style="font-size: 11px; color: var(--accent-primary); margin-bottom: 2px;">${change.match}</div>
+                <div class="odds-change-market">${change.market}</div>
+                <div class="odds-change-odds">
+                    ${change.oldOdds.toFixed(2)} → ${change.newOdds.toFixed(2)}
+                </div>
+            `;
+            
+            container.insertBefore(changeEl, container.firstChild);
+            if (container.children.length > 50) container.removeChild(container.lastChild);
+        }
+
+        // Fetch Helper
+        async function fetchCompetitionEvents(competition) {
+            if (isNetlify) {
+                const apiUrl = `${API_PROXY_URL}/${competition.key}`;
+                const response = await fetch(apiUrl);
+                if (!response.ok) throw new Error(response.statusText);
+                const data = await response.json();
+                return data.events?.filter(e => 
+                    e.type === 'EVENT_TYPE_EVENT' && e.home && e.away && e.markets?.['soccer.match_odds']
+                ) || [];
+            } else {
+                return generateMockEvents(competition);
+            }
+        }
+
+        // Utils & Mock Data
         function calculateMargin(odds) { return ((odds.reduce((a, b) => a + 1/b, 0) - 1) * 100).toFixed(2); }
         function toImpliedOdds(odds) { const sum = odds.reduce((a, b) => a + 1/b, 0); return odds.map(o => o * sum); }
         function generateMockCategories() { return [{ name: "Demo League", competitions: [{ name: "Premier League", key: "demo", eventCount: 5 }] }]; }
         function generateMockEvents(comp) {
-            // Mock data that changes randomly to test the diff engine
             const now = new Date();
+            // Randomized Mock Data for testing Diff
             return [1, 2, 3, 4, 5].map(i => ({
                 home: { name: `Home ${i}` }, away: { name: `Away ${i}` },
                 cutoffTime: new Date(now.getTime() + i*86400000).toISOString(),
                 type: 'EVENT_TYPE_EVENT',
                 markets: {
-                    'soccer.match_odds': {
-                        submarkets: { 'period=ft': { selections: [
-                            { outcome: 'home', price: 2 + (Math.random() * 0.1), probability: 0.45 },
-                            { outcome: 'draw', price: 3 + (Math.random() * 0.1), probability: 0.25 },
-                            { outcome: 'away', price: 3.5 + (Math.random() * 0.1), probability: 0.30 }
-                        ]}}
-                    },
+                    'soccer.match_odds': { submarkets: { 'period=ft': { selections: [
+                        { outcome: 'home', price: 2 + (Math.random() * 0.1), probability: 0.45 },
+                        { outcome: 'draw', price: 3 + (Math.random() * 0.1), probability: 0.25 },
+                        { outcome: 'away', price: 3.5 + (Math.random() * 0.1), probability: 0.30 }
+                    ]}}},
                     'soccer.total_goals': { submarkets: { 'period=ft': { selections: [
                         { outcome: 'over', params: 'total=2.5', price: 1.9, probability: 0.5 },
                         { outcome: 'under', params: 'total=2.5', price: 1.9, probability: 0.5 }
