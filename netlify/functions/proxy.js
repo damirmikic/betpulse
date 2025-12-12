@@ -1,7 +1,19 @@
 // netlify/functions/proxy.js
-const API_KEY = 'eyJhbGciOiJSUzI1NiIsImtpZCI6IkhKcDkyNnF3ZXBjNnF3LU9rMk4zV05pXzBrRFd6cEdwTzAxNlRJUjdRWDAiLCJ0eXAiOiJKV1QifQ.eyJhY2Nlc3NfdGllciI6InRyYWRpbmciLCJleHAiOjIwNjE1Mzc1MDIsImlhdCI6MTc0NjE3NzUwMiwianRpIjoiNTU1ODk0NjgtZjJhZi00ZGQ3LWE3MTQtZjNiNjgyMWU4OGRkIiwic3ViIjoiOGYwYTk5YTEtNTFhZi00YzJlLWFlNDUtY2MxNjgwNDVjZTc3IiwidGVuYW50IjoiY2xvdWRiZXQiLCJ1dWlkIjoiOGYwYTk5YTEtNTFhZi00YzJlLWFlNDUtY2MxNjgwNDVjZTc3In0.BW_nXSwTkxTI7C-1UzgxWLnNzo9Bo1Ed8hI9RfVLnrJa6sfsMyvQ1NrtT5t6i_emwhkRHU1hY-9i6c2c5AI4fc2mRLSNBujvrfbVHX67uB58E8TeSOZUBRi0eqfLBL7sYl1JNPZzhFkDBCBNFJZJpn40FIjIrtIiPd-G5ClaaSMRWrFUDiwA1NmyxHSfkfRpeRSnfk15qck7zSIeNeITzPbD7kZGDIeStmcHuiHfcQX3NaHaI0gyw60wmDgan83NpYQYRVLQ9C4icbNhel4n5H5FGFAxQS8IcvynqV8f-vz2t4BRGuYXBU8uhdYKgezhyQrSvX6NpwNPBJC8CWo2fA';
+
+// 1. READ FROM ENVIRONMENT VARIABLE
+// If the variable is missing (e.g. local dev without setup), it logs a warning.
+const API_KEY = process.env.CLOUDBET_API_KEY;
 
 exports.handler = async (event, context) => {
+    // 2. SAFETY CHECK
+    if (!API_KEY) {
+        console.error("Missing CLOUDBET_API_KEY environment variable");
+        return {
+            statusCode: 500,
+            body: JSON.stringify({ error: "Server configuration error: API Key missing" })
+        };
+    }
+
     const headers = {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': 'Content-Type',
@@ -13,8 +25,14 @@ exports.handler = async (event, context) => {
     }
 
     try {
-        const competitionKey = event.path.split('/').pop();
-        const apiUrl = `https://sports-api.cloudbet.com/pub/v2/odds/competitions/${competitionKey}?markets=soccer.match_odds&markets=soccer.total_goals&players=false&limit=50`;
+        const pathSegment = event.path.split('/').pop();
+        let apiUrl;
+
+        if (pathSegment === 'soccer') {
+            apiUrl = `https://sports-api.cloudbet.com/pub/v2/odds/sports/soccer`;
+        } else {
+            apiUrl = `https://sports-api.cloudbet.com/pub/v2/odds/competitions/${pathSegment}?markets=soccer.match_odds&markets=soccer.total_goals&players=false&limit=50`;
+        }
         
         const response = await fetch(apiUrl, {
             headers: {
