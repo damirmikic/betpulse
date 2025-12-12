@@ -3,26 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Betting Feed Provider</title>
+    <title>Betting Feed Provider - ZIP Distribution</title>
     <link rel="stylesheet" href="styles.css">
     <style>
-        /* Extra styles for the new refresh timer */
-        .refresh-timer {
-            margin-left: 12px;
+        /* Global Timer in Sidebar */
+        .global-timer {
+            margin-top: 8px;
             font-size: 11px;
             font-family: 'JetBrains Mono', monospace;
-            background: rgba(0, 255, 136, 0.1);
+            background: rgba(0, 255, 136, 0.08);
             color: var(--accent-primary);
-            padding: 4px 8px;
+            padding: 6px 10px;
             border-radius: 4px;
-            display: inline-flex;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border: 1px solid rgba(0, 255, 136, 0.2);
+        }
+        .timer-status {
+            display: flex;
             align-items: center;
             gap: 6px;
-            opacity: 0;
-            transition: opacity 0.3s ease;
         }
-        .refresh-timer.visible {
-            opacity: 1;
+        .timer-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--text-muted);
+        }
+        .timer-dot.active {
+            background: var(--accent-primary);
+            box-shadow: 0 0 8px var(--accent-primary);
         }
         .refresh-icon {
             font-size: 10px;
@@ -38,6 +49,14 @@
             <div class="sidebar-header">
                 <h1>Betting Feed</h1>
                 <p>Zero-Inflated Poisson</p>
+                
+                <div class="global-timer">
+                    <div class="timer-status">
+                        <span id="timerDot" class="timer-dot"></span>
+                        <span id="refreshText">Idle</span>
+                    </div>
+                    <span class="refresh-icon">↻</span>
+                </div>
             </div>
             
             <div class="search-box">
@@ -56,10 +75,6 @@
                     <div class="subtitle">
                         <span class="status-dot"></span>
                         <span id="contentSubtitle">Choose from the sidebar to view betting odds</span>
-                        <span id="refreshBadge" class="refresh-timer">
-                            <span class="refresh-icon">↻</span>
-                            <span id="refreshText">Next update: 15s</span>
-                        </span>
                     </div>
                 </div>
                 <div class="odds-toggle">
@@ -73,7 +88,7 @@
                     <div class="empty-state">
                         <div style="font-size: 48px; margin-bottom: 16px;">⚽</div>
                         <h3>No Competition Selected</h3>
-                        <p style="margin-top: 8px;">Select a competition from the sidebar to view events and odds</p>
+                        <p style="margin-top: 8px;">Select a competition to start monitoring odds</p>
                     </div>
                 </div>
                 
@@ -88,7 +103,8 @@
                     </div>
                     <div id="oddsChanges" class="odds-changes-list">
                         <div class="odds-changes-empty">
-                            No changes detected yet. Changes will appear here when odds move by more than the threshold.
+                            No changes detected yet. <br>
+                            Select a competition to start monitoring all matches.
                         </div>
                     </div>
                 </div>
@@ -102,12 +118,12 @@
         // ==========================================
         const API_PROXY_URL = '/.netlify/functions/proxy';
         
-        let currentOddsMode = 'feed'; // 'feed' or 'implied'
-        let currentEvent = null;
-        let currentCompetition = null;
+        let currentOddsMode = 'feed'; 
+        let currentEvent = null;            // The specific match being viewed
+        let currentCompetition = null;      // The active competition being monitored
+        let currentCompetitionEvents = [];  // Store ALL events in the competition for comparison
         
-        // Refresh State
-        let refreshIntervalHandle = null;
+        // Timer State
         let countdownHandle = null;
         let secondsRemaining = 15;
         const REFRESH_SECONDS = 15;
@@ -128,37 +144,14 @@
                 if (isNetlify) {
                     const response = await fetch(`${API_PROXY_URL}/soccer`);
                     if (!response.ok) throw new Error(`API Error: ${response.status}`);
-                    
                     const data = await response.json();
                     
-                    if (data.categories && Array.isArray(data.categories)) {
-                        renderSidebar(data.categories);
-                    } 
-                    else if (data.competitions && Array.isArray(data.competitions)) {
-                        const grouped = groupCompetitions(data.competitions);
-                        renderSidebar(grouped);
-                    } else {
-                        console.warn('Unexpected data structure:', data);
-                        list.innerHTML = '<div class="empty-state">No competitions found (Invalid Format)</div>';
-                    }
+                    if (data.categories) renderSidebar(data.categories);
+                    else if (data.competitions) renderSidebar(groupCompetitions(data.competitions));
+                    else list.innerHTML = '<div class="empty-state">No competitions found</div>';
                 } else {
                     console.warn("Local Dev: Using mock data.");
-                    const mockCategories = [
-                        {
-                            name: "England",
-                            competitions: [
-                                { name: "Premier League", key: "soccer-england-premier-league", eventCount: 10 },
-                                { name: "Championship", key: "soccer-england-championship", eventCount: 5 }
-                            ]
-                        },
-                        {
-                            name: "Spain",
-                            competitions: [
-                                { name: "La Liga", key: "soccer-spain-laliga", eventCount: 8 }
-                            ]
-                        }
-                    ];
-                    renderSidebar(mockCategories);
+                    renderSidebar(generateMockCategories());
                 }
 
             } catch (error) {
@@ -173,30 +166,21 @@
                 if (!comp.name) return;
                 const category = comp.category ? comp.category.name : 'International';
                 if (!groups[category]) groups[category] = [];
-                groups[category].push({
-                    name: comp.name,
-                    key: comp.key,
-                    eventCount: comp.eventCount || 0
-                });
+                groups[category].push(comp);
             });
-            return Object.keys(groups).sort().map(category => ({
-                name: category,
-                competitions: groups[category].sort((a, b) => b.eventCount - a.eventCount)
+            return Object.keys(groups).sort().map(cat => ({
+                name: cat,
+                competitions: groups[cat].sort((a, b) => (b.eventCount || 0) - (a.eventCount || 0))
             }));
         }
 
         // ==========================================
-        // 2. UI RENDERING (SIDEBAR)
+        // 2. UI RENDERING & INTERACTION
         // ==========================================
 
         function renderSidebar(categories) {
             const list = document.getElementById('competitionsList');
             list.innerHTML = '';
-
-            if (!categories || categories.length === 0) {
-                list.innerHTML = '<div class="empty-state">No competitions found.</div>';
-                return;
-            }
 
             categories.sort((a, b) => a.name.localeCompare(b.name));
 
@@ -211,9 +195,7 @@
                 const regionGroup = document.createElement('div');
                 regionGroup.className = 'region-group';
 
-                const sortedComps = [...category.competitions].sort((a, b) => b.eventCount - a.eventCount);
-
-                sortedComps.forEach(comp => {
+                category.competitions.forEach(comp => {
                     const item = document.createElement('div');
                     item.className = 'competition-item';
                     item.dataset.key = comp.key;
@@ -222,12 +204,11 @@
                             <span class="expand-icon">▶</span>
                             <span class="competition-name">${comp.name}</span>
                         </div>
-                        <span class="event-count">${comp.eventCount}</span>
+                        <span class="event-count">${comp.eventCount || 0}</span>
                     `;
                     
                     const eventsContainer = document.createElement('div');
                     eventsContainer.className = 'events-sublist';
-                    eventsContainer.dataset.competitionKey = comp.key;
                     
                     item.addEventListener('click', (e) => {
                         e.stopPropagation();
@@ -242,71 +223,57 @@
             });
         }
 
-        async function toggleCompetition(competitionItem, eventsContainer, competition) {
-            const isExpanded = competitionItem.classList.contains('expanded');
+        async function toggleCompetition(item, container, competition) {
+            const isExpanded = item.classList.contains('expanded');
             
-            document.querySelectorAll('.competition-item').forEach(item => item.classList.remove('expanded'));
-            document.querySelectorAll('.events-sublist').forEach(list => list.classList.remove('expanded'));
+            // UI Cleanup
+            document.querySelectorAll('.competition-item').forEach(i => i.classList.remove('expanded'));
+            document.querySelectorAll('.events-sublist').forEach(l => l.classList.remove('expanded'));
             
-            if (isExpanded) return;
+            if (isExpanded) {
+                // Clicking same one collapses it and stops monitoring
+                stopAutoRefresh();
+                currentCompetition = null;
+                return;
+            }
             
-            competitionItem.classList.add('expanded');
-            eventsContainer.classList.add('expanded');
+            // Expand and Activate
+            item.classList.add('expanded');
+            container.classList.add('expanded');
             
-            if (eventsContainer.children.length === 0) {
-                eventsContainer.innerHTML = '<div style="padding: 10px 20px; color: var(--text-muted); font-size: 12px;">Loading events...</div>';
+            // Set Global Competition State
+            currentCompetition = competition;
+            startAutoRefresh(); // Start monitoring immediately!
+
+            // Initial Load
+            if (container.children.length === 0) {
+                container.innerHTML = '<div style="padding: 10px 20px; color: var(--text-muted); font-size: 12px;">Loading events...</div>';
                 try {
                     const events = await fetchCompetitionEvents(competition);
-                    renderEventsList(eventsContainer, events, competition);
+                    currentCompetitionEvents = events; // Store baseline for diffing
+                    renderEventsList(container, events, competition);
                 } catch (error) {
-                    eventsContainer.innerHTML = `<div style="padding: 10px 20px; color: var(--text-muted); font-size: 12px;">Error loading events</div>`;
+                    container.innerHTML = `<div style="padding: 10px 20px; color: var(--text-muted); font-size: 12px;">Error loading events</div>`;
                 }
             }
         }
 
-        // ==========================================
-        // 3. DATA FETCHING (EVENTS)
-        // ==========================================
-
-        async function fetchCompetitionEvents(competition) {
-            const isNetlify = window.location.hostname.includes('netlify.app') || 
-                             window.location.hostname.includes('netlify.com');
-            
-            if (isNetlify) {
-                const apiUrl = `${API_PROXY_URL}/${competition.key}`;
-                const response = await fetch(apiUrl);
-                if (!response.ok) throw new Error(`API returned ${response.status}`);
-                const data = await response.json();
-                
-                return data.events?.filter(event => 
-                    event.type === 'EVENT_TYPE_EVENT' &&
-                    event.home && event.away &&
-                    event.markets?.['soccer.match_odds']
-                ) || [];
-            } else {
-                return generateMockEvents(competition);
-            }
-        }
-
         function renderEventsList(container, events, competition) {
-            if (events.length === 0) {
-                container.innerHTML = '<div style="padding: 10px 20px; color: var(--text-muted); font-size: 12px;">No events available</div>';
-                return;
-            }
+            container.innerHTML = events.length ? '' : '<div style="padding: 10px 20px; color: var(--text-muted); font-size: 12px;">No events available</div>';
             
-            container.innerHTML = '';
             events.forEach(event => {
                 const eventItem = document.createElement('div');
                 eventItem.className = 'event-item';
+                // Add ID to find it later easily
+                eventItem.dataset.matchId = `${event.home.name}-${event.away.name}`; 
                 
-                const eventDate = new Date(event.cutoffTime);
-                const formattedTime = eventDate.toLocaleString('en-US', {
+                const time = new Date(event.cutoffTime).toLocaleString('en-US', {
                     month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
                 });
                 
                 eventItem.innerHTML = `
                     <div class="event-item-teams">${event.home.name} vs ${event.away.name}</div>
-                    <div class="event-item-time">${formattedTime}</div>
+                    <div class="event-item-time">${time}</div>
                 `;
                 
                 eventItem.addEventListener('click', (e) => {
@@ -318,132 +285,20 @@
             });
         }
 
-        // ==========================================
-        // 4. MAIN ODDS DISPLAY & LOGIC
-        // ==========================================
-
         function selectEvent(eventItem, event, competition) {
-            document.querySelectorAll('.event-item').forEach(item => item.classList.remove('active'));
+            document.querySelectorAll('.event-item').forEach(i => i.classList.remove('active'));
             eventItem.classList.add('active');
-            
             displayEventDetails(event, competition);
-            startAutoRefresh(); // Start the timer loop
-        }
-
-        function displayEventDetails(event, competition) {
-            currentEvent = event;
-            currentCompetition = competition;
-            
-            document.getElementById('contentTitle').textContent = `${event.home.name} vs ${event.away.name}`;
-            
-            const eventDate = new Date(event.cutoffTime);
-            const formattedDate = eventDate.toLocaleString('en-US', {
-                weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-            });
-            
-            document.getElementById('contentSubtitle').textContent = `${competition.name} • ${formattedDate}`;
-            renderOdds();
-        }
-
-        function renderOdds() {
-            if (!currentEvent) return;
-            
-            const contentArea = document.getElementById('contentArea');
-            const matchOddsMarket = currentEvent.markets?.['soccer.match_odds']?.submarkets?.['period=ft'];
-            const totalGoalsMarket = currentEvent.markets?.['soccer.total_goals']?.submarkets?.['period=ft'];
-            
-            let html = '<div style="max-width: 1200px;">';
-            
-            // --- Match Odds Section ---
-            if (matchOddsMarket) {
-                const homeSel = matchOddsMarket.selections?.find(s => s.outcome === 'home');
-                const drawSel = matchOddsMarket.selections?.find(s => s.outcome === 'draw');
-                const awaySel = matchOddsMarket.selections?.find(s => s.outcome === 'away');
-                
-                if (homeSel && drawSel && awaySel) {
-                    const feedOdds = [homeSel.price, drawSel.price, awaySel.price];
-                    const margin = calculateMargin(feedOdds);
-                    
-                    let displayOdds = currentOddsMode === 'implied' ? toImpliedOdds(feedOdds) : feedOdds;
-                    let displayProbs = displayOdds.map(odd => 1 / odd);
-                    
-                    html += `
-                        <div class="market-section">
-                            <h3>
-                                Match Odds (1X2)
-                                ${currentOddsMode === 'feed' ? `<span class="margin-badge">Margin: ${margin}%</span>` : ''}
-                            </h3>
-                            <div class="markets-grid">
-                                ${renderMarketCard('Home Win', displayOdds[0], displayProbs[0])}
-                                ${renderMarketCard('Draw', displayOdds[1], displayProbs[1])}
-                                ${renderMarketCard('Away Win', displayOdds[2], displayProbs[2])}
-                            </div>
-                        </div>
-                    `;
-                }
-            }
-            
-            // --- Total Goals Section ---
-            if (totalGoalsMarket && totalGoalsMarket.selections) {
-                const goalLines = {};
-                totalGoalsMarket.selections.forEach(sel => {
-                    const match = sel.params.match(/total=([\d.]+)/);
-                    if (match) {
-                        const total = match[1];
-                        if (!goalLines[total]) goalLines[total] = {};
-                        goalLines[total][sel.outcome] = sel;
-                    }
-                });
-                
-                html += `<div class="market-section"><h3>Total Goals</h3>`;
-                
-                ['2.5', '1.5', '3.5', '2.75', '3.25'].forEach(line => {
-                    if (goalLines[line] && goalLines[line].over && goalLines[line].under) {
-                        const feedOdds = [goalLines[line].over.price, goalLines[line].under.price];
-                        const margin = calculateMargin(feedOdds);
-                        let displayOdds = currentOddsMode === 'implied' ? toImpliedOdds(feedOdds) : feedOdds;
-                        let displayProbs = displayOdds.map(odd => 1 / odd);
-                        
-                        html += `
-                            <div class="goal-line-section">
-                                <div class="goal-line-header">Over/Under ${line} ${currentOddsMode === 'feed' ? `<span style="color: #ff8800; margin-left:8px;">+${margin}%</span>` : ''}</div>
-                                <div class="goal-line-grid">
-                                    ${renderMarketCard(`Over ${line}`, displayOdds[0], displayProbs[0])}
-                                    ${renderMarketCard(`Under ${line}`, displayOdds[1], displayProbs[1])}
-                                </div>
-                            </div>
-                        `;
-                    }
-                });
-                html += `</div>`;
-            }
-            
-            html += '</div>';
-            contentArea.innerHTML = html;
-        }
-
-        function renderMarketCard(label, odds, prob) {
-            return `
-                <div class="market-card">
-                    <div class="market-label">${label}</div>
-                    <div class="market-odds">${odds.toFixed(2)}</div>
-                    <div class="market-probability">${(prob * 100).toFixed(1)}%</div>
-                </div>
-            `;
         }
 
         // ==========================================
-        // 5. ODDS MOVEMENT TRACKING & REFRESH LOGIC
+        // 3. GLOBAL ODDS MONITORING
         // ==========================================
 
         function startAutoRefresh() {
-            // Reset existing timers
             if (countdownHandle) clearInterval(countdownHandle);
             
-            // Show badge
-            const badge = document.getElementById('refreshBadge');
-            badge.classList.add('visible');
-            
+            document.getElementById('timerDot').classList.add('active');
             secondsRemaining = REFRESH_SECONDS;
             updateRefreshUI(false);
             
@@ -451,12 +306,19 @@
                 secondsRemaining--;
                 
                 if (secondsRemaining <= 0) {
-                    refreshEventOdds();
+                    refreshCompetitionOdds(); // The global update function
                     secondsRemaining = REFRESH_SECONDS;
                 }
                 
-                updateRefreshUI(secondsRemaining === REFRESH_SECONDS); // Pass true if we just reset (fetching)
+                updateRefreshUI(secondsRemaining === REFRESH_SECONDS);
             }, 1000);
+        }
+
+        function stopAutoRefresh() {
+            if (countdownHandle) clearInterval(countdownHandle);
+            document.getElementById('timerDot').classList.remove('active');
+            document.getElementById('refreshText').textContent = "Idle";
+            document.querySelector('.refresh-icon').classList.remove('spinning');
         }
 
         function updateRefreshUI(isFetching) {
@@ -464,38 +326,61 @@
             const iconEl = document.querySelector('.refresh-icon');
             
             if (isFetching || secondsRemaining === 0) {
-                textEl.textContent = "Updating...";
+                textEl.textContent = `Updating ${currentCompetition ? currentCompetition.name : ''}...`;
                 iconEl.classList.add('spinning');
             } else {
-                textEl.textContent = `Next update: ${secondsRemaining}s`;
+                textEl.textContent = `Next scan: ${secondsRemaining}s`;
                 iconEl.classList.remove('spinning');
             }
         }
 
-        async function refreshEventOdds() {
-            if (!currentEvent || !currentCompetition) return;
+        async function refreshCompetitionOdds() {
+            if (!currentCompetition) return;
 
             try {
-                // Fetch fresh data
-                const events = await fetchCompetitionEvents(currentCompetition);
+                // 1. Fetch ALL events for the active competition
+                const freshEvents = await fetchCompetitionEvents(currentCompetition);
                 
-                const updatedEvent = events.find(e => 
-                    e.home?.name === currentEvent.home?.name && 
-                    e.away?.name === currentEvent.away?.name
-                );
-                
-                if (updatedEvent) {
-                    detectOddsChanges(currentEvent, updatedEvent);
-                    currentEvent = updatedEvent;
-                    renderOdds();
+                // 2. Loop through EVERY fresh event to check for changes
+                freshEvents.forEach(newEvent => {
+                    // Find the matching old event from our stored state
+                    const oldEvent = currentCompetitionEvents.find(e => 
+                        e.home.name === newEvent.home.name && 
+                        e.away.name === newEvent.away.name
+                    );
+
+                    if (oldEvent) {
+                        detectOddsChanges(oldEvent, newEvent);
+                    }
+                });
+
+                // 3. Update the global state with new data
+                currentCompetitionEvents = freshEvents;
+
+                // 4. Update the Main View ONLY if the user is looking at a specific match
+                if (currentEvent) {
+                    const updatedCurrentEvent = freshEvents.find(e => 
+                        e.home.name === currentEvent.home.name && 
+                        e.away.name === currentEvent.away.name
+                    );
+                    
+                    if (updatedCurrentEvent) {
+                        currentEvent = updatedCurrentEvent;
+                        renderOdds(); // Re-render the center panel
+                    }
                 }
+
             } catch (error) {
-                console.error('Refresh failed:', error);
+                console.error('Global Refresh failed:', error);
             }
         }
 
+        // ==========================================
+        // 4. CHANGE DETECTION
+        // ==========================================
+
         function detectOddsChanges(oldEvent, newEvent) {
-            const matchKey = `${oldEvent.home.name}-${oldEvent.away.name}`;
+            const matchKey = `${oldEvent.home.name} vs ${oldEvent.away.name}`;
             
             const getMarket = (e) => e.markets?.['soccer.match_odds']?.submarkets?.['period=ft'];
             const oldMarket = getMarket(oldEvent);
@@ -513,7 +398,7 @@
                     if (Math.abs(change) >= changeThreshold) {
                         addOddsChange({
                             time: new Date(),
-                            match: matchKey,
+                            match: matchKey, // Shows which match changed!
                             market: `1X2 - ${outcome.toUpperCase()}`,
                             oldOdds: oldSel.price,
                             newOdds: newSel.price,
@@ -531,13 +416,18 @@
             
             const changeEl = document.createElement('div');
             changeEl.className = 'odds-change-item';
+            
+            // Format time
+            const timeStr = change.time.toLocaleTimeString([], { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
             changeEl.innerHTML = `
                 <div class="odds-change-header">
-                    <span class="odds-change-time">${change.time.toLocaleTimeString()}</span>
+                    <span class="odds-change-time">${timeStr}</span>
                     <span class="odds-change-percentage ${change.change > 0 ? 'positive' : 'negative'}">
                         ${change.change > 0 ? '+' : ''}${change.change.toFixed(1)}%
                     </span>
                 </div>
+                <div style="font-size: 11px; color: var(--accent-primary); margin-bottom: 2px;">${change.match}</div>
                 <div class="odds-change-market">${change.market}</div>
                 <div class="odds-change-odds">
                     ${change.oldOdds.toFixed(2)} → ${change.newOdds.toFixed(2)}
@@ -546,96 +436,164 @@
             
             container.insertBefore(changeEl, container.firstChild);
             
-            if (container.children.length > 20) {
+            if (container.children.length > 50) { // Increased history limit
                 container.removeChild(container.lastChild);
             }
         }
 
         // ==========================================
-        // 6. MATH & UTILITIES
+        // 5. HELPER FUNCTIONS
         // ==========================================
 
-        function calculateMargin(odds) {
-            const sum = odds.reduce((acc, odd) => acc + (1 / odd), 0);
-            return ((sum - 1) * 100).toFixed(2);
+        async function fetchCompetitionEvents(competition) {
+            const isNetlify = window.location.hostname.includes('netlify.app') || 
+                             window.location.hostname.includes('netlify.com');
+            
+            if (isNetlify) {
+                const apiUrl = `${API_PROXY_URL}/${competition.key}`;
+                const response = await fetch(apiUrl);
+                if (!response.ok) throw new Error(response.statusText);
+                const data = await response.json();
+                return data.events?.filter(e => 
+                    e.type === 'EVENT_TYPE_EVENT' && e.home && e.away && e.markets?.['soccer.match_odds']
+                ) || [];
+            } else {
+                return generateMockEvents(competition);
+            }
         }
 
-        function toImpliedOdds(odds) {
-            const sum = odds.reduce((acc, odd) => acc + (1 / odd), 0);
-            return odds.map(odd => odd * sum);
+        function displayEventDetails(event, competition) {
+            currentEvent = event;
+            document.getElementById('contentTitle').textContent = `${event.home.name} vs ${event.away.name}`;
+            
+            const dateStr = new Date(event.cutoffTime).toLocaleString('en-US', {
+                weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+            });
+            document.getElementById('contentSubtitle').textContent = `${competition.name} • ${dateStr}`;
+            renderOdds();
         }
 
-        function generateMockEvents(competition) {
+        function renderOdds() {
+            if (!currentEvent) return;
+            const contentArea = document.getElementById('contentArea');
+            const matchOdds = currentEvent.markets?.['soccer.match_odds']?.submarkets?.['period=ft'];
+            const totalGoals = currentEvent.markets?.['soccer.total_goals']?.submarkets?.['period=ft'];
+            
+            let html = '<div style="max-width: 1200px;">';
+            
+            // Match Odds
+            if (matchOdds) {
+                const home = matchOdds.selections.find(s => s.outcome === 'home');
+                const draw = matchOdds.selections.find(s => s.outcome === 'draw');
+                const away = matchOdds.selections.find(s => s.outcome === 'away');
+                
+                if (home && draw && away) {
+                    const rawOdds = [home.price, draw.price, away.price];
+                    const displayOdds = currentOddsMode === 'implied' ? toImpliedOdds(rawOdds) : rawOdds;
+                    const probs = displayOdds.map(o => 1/o);
+                    const margin = calculateMargin(rawOdds);
+                    
+                    html += `
+                        <div class="market-section">
+                            <h3>Match Odds (1X2) ${currentOddsMode === 'feed' ? `<span class="margin-badge">Margin: ${margin}%</span>` : ''}</h3>
+                            <div class="markets-grid">
+                                ${renderCard('Home Win', displayOdds[0], probs[0])}
+                                ${renderCard('Draw', displayOdds[1], probs[1])}
+                                ${renderCard('Away Win', displayOdds[2], probs[2])}
+                            </div>
+                        </div>`;
+                }
+            }
+
+            // Totals
+            if (totalGoals) {
+                const lines = {};
+                totalGoals.selections.forEach(s => {
+                    const m = s.params.match(/total=([\d.]+)/);
+                    if (m) {
+                        if (!lines[m[1]]) lines[m[1]] = {};
+                        lines[m[1]][s.outcome] = s;
+                    }
+                });
+
+                html += `<div class="market-section"><h3>Total Goals</h3>`;
+                ['2.5', '1.5', '3.5'].forEach(line => {
+                    if (lines[line]?.over && lines[line]?.under) {
+                        const raw = [lines[line].over.price, lines[line].under.price];
+                        const disp = currentOddsMode === 'implied' ? toImpliedOdds(raw) : raw;
+                        const probs = disp.map(o => 1/o);
+                        
+                        html += `
+                            <div class="goal-line-section">
+                                <div class="goal-line-header">Over/Under ${line}</div>
+                                <div class="goal-line-grid">
+                                    ${renderCard(`Over ${line}`, disp[0], probs[0])}
+                                    ${renderCard(`Under ${line}`, disp[1], probs[1])}
+                                </div>
+                            </div>`;
+                    }
+                });
+                html += `</div>`;
+            }
+            
+            html += '</div>';
+            contentArea.innerHTML = html;
+        }
+
+        function renderCard(label, odds, prob) {
+            return `
+                <div class="market-card">
+                    <div class="market-label">${label}</div>
+                    <div class="market-odds">${odds.toFixed(2)}</div>
+                    <div class="market-probability">${(prob * 100).toFixed(1)}%</div>
+                </div>`;
+        }
+
+        // Utils
+        function calculateMargin(odds) { return ((odds.reduce((a, b) => a + 1/b, 0) - 1) * 100).toFixed(2); }
+        function toImpliedOdds(odds) { const sum = odds.reduce((a, b) => a + 1/b, 0); return odds.map(o => o * sum); }
+        function generateMockCategories() { return [{ name: "Demo League", competitions: [{ name: "Premier League", key: "demo", eventCount: 5 }] }]; }
+        function generateMockEvents(comp) {
+            // Mock data that changes randomly to test the diff engine
             const now = new Date();
-            return [1, 2, 3].map(i => ({
-                home: { name: `Home Team ${i}` },
-                away: { name: `Away Team ${i}` },
-                cutoffTime: new Date(now.getTime() + i * 86400000).toISOString(),
+            return [1, 2, 3, 4, 5].map(i => ({
+                home: { name: `Home ${i}` }, away: { name: `Away ${i}` },
+                cutoffTime: new Date(now.getTime() + i*86400000).toISOString(),
                 type: 'EVENT_TYPE_EVENT',
                 markets: {
                     'soccer.match_odds': {
-                        submarkets: {
-                            'period=ft': {
-                                selections: [
-                                    { outcome: 'home', price: 2.0 + Math.random(), probability: 0.45 },
-                                    { outcome: 'draw', price: 3.0 + Math.random(), probability: 0.25 },
-                                    { outcome: 'away', price: 3.5 + Math.random(), probability: 0.30 }
-                                ]
-                            }
-                        }
+                        submarkets: { 'period=ft': { selections: [
+                            { outcome: 'home', price: 2 + (Math.random() * 0.1), probability: 0.45 },
+                            { outcome: 'draw', price: 3 + (Math.random() * 0.1), probability: 0.25 },
+                            { outcome: 'away', price: 3.5 + (Math.random() * 0.1), probability: 0.30 }
+                        ]}}
                     },
-                    'soccer.total_goals': {
-                        submarkets: {
-                            'period=ft': {
-                                selections: [
-                                    { outcome: 'over', params: 'total=2.5', price: 1.9, probability: 0.5 },
-                                    { outcome: 'under', params: 'total=2.5', price: 1.9, probability: 0.5 }
-                                ]
-                            }
-                        }
-                    }
+                    'soccer.total_goals': { submarkets: { 'period=ft': { selections: [
+                        { outcome: 'over', params: 'total=2.5', price: 1.9, probability: 0.5 },
+                        { outcome: 'under', params: 'total=2.5', price: 1.9, probability: 0.5 }
+                    ]}}}
                 }
             }));
         }
 
-        // ==========================================
-        // 7. EVENT LISTENERS
-        // ==========================================
-
+        // Event Listeners
         document.getElementById('feedOddsBtn').addEventListener('click', () => {
             currentOddsMode = 'feed';
             document.getElementById('feedOddsBtn').classList.add('active');
             document.getElementById('impliedOddsBtn').classList.remove('active');
-            if (currentEvent) renderOdds();
+            renderOdds();
         });
-
         document.getElementById('impliedOddsBtn').addEventListener('click', () => {
             currentOddsMode = 'implied';
             document.getElementById('impliedOddsBtn').classList.add('active');
             document.getElementById('feedOddsBtn').classList.remove('active');
-            if (currentEvent) renderOdds();
+            renderOdds();
         });
-
         document.getElementById('thresholdInput').addEventListener('change', (e) => {
             changeThreshold = parseFloat(e.target.value) || 2.0;
         });
 
-        document.getElementById('searchInput').addEventListener('input', (e) => {
-            const searchTerm = e.target.value.toLowerCase();
-            document.querySelectorAll('.competition-item').forEach(item => {
-                const name = item.querySelector('.competition-name').textContent.toLowerCase();
-                const visible = name.includes(searchTerm);
-                item.style.display = visible ? 'flex' : 'none';
-            });
-            document.querySelectorAll('.region-group').forEach(group => {
-                const visibleItems = Array.from(group.querySelectorAll('.competition-item'))
-                    .filter(item => item.style.display !== 'none');
-                const header = group.previousElementSibling;
-                if (header) header.style.display = visibleItems.length > 0 ? 'block' : 'none';
-            });
-        });
-
-        // Start App
+        // Initialize
         initApp();
     </script>
 </body>
