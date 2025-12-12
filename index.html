@@ -3,12 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Betting Feed Provider - ZIP Distribution</title>
+    <title>Betting Feed Provider</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
-        <!-- Sidebar -->
         <aside class="sidebar">
             <div class="sidebar-header">
                 <h1>Betting Feed</h1>
@@ -20,11 +19,10 @@
             </div>
             
             <div class="competitions-list" id="competitionsList">
-                <!-- Competitions will be loaded here -->
+                <div class="loading-state" style="padding: 20px; font-size: 12px;">Initializing...</div>
             </div>
         </aside>
         
-        <!-- Main Content -->
         <main class="main-content">
             <div class="content-header">
                 <div class="content-header-text">
@@ -54,7 +52,7 @@
                         <h3>Odds Changes</h3>
                         <div class="threshold-control">
                             <label>Min. Change:</label>
-                            <input type="number" id="thresholdInput" value="5" min="1" max="50" step="1">
+                            <input type="number" id="thresholdInput" value="2" min="1" max="50" step="0.5">
                             <span>%</span>
                         </div>
                     </div>
@@ -69,250 +67,95 @@
     </div>
 
     <script>
-        // Competition data from the provided JSON
-        const competitionsData = {
-            "name": "Soccer",
-            "key": "soccer",
-            "competitionCount": 182,
-            "categories": [
-                {
-                    "name": "International",
-                    "key": "international",
-                    "competitions": [
-                        {"name": "FIFA World Cup", "key": "soccer-international-world-cup", "eventCount": 112},
-                        {"name": "FIFA World Cup Playoffs, UEFA", "key": "soccer-international-wc-qualification-uefa", "eventCount": 5},
-                        {"name": "FIFA World Cup Qualifiers", "key": "soccer-international-wc-qualifying-conmebol", "eventCount": 24},
-                        {"name": "Africa Cup of Nations", "key": "soccer-international-africa-cup-of-nations", "eventCount": 38},
-                        {"name": "FIFA Arab Cup", "key": "soccer-international-t6f1d-arab-cup", "eventCount": 2},
-                        {"name": "Africa Cup of Nations, Qualification", "key": "soccer-international-africa-cup-of-nations-qualification", "eventCount": 12},
-                        {"name": "Ballon dor", "key": "soccer-international-ballon-dor", "eventCount": 1},
-                        {"name": "Intercontinental Cup", "key": "soccer-international-intercontinental-cup", "eventCount": 1},
-                        {"name": "AFC SEA Games U23", "key": "soccer-international-tbaa7-afc-sea-games-u23", "eventCount": 1}
-                    ]
-                },
-                {
-                    "name": "England",
-                    "key": "england",
-                    "competitions": [
-                        {"name": "Premier League", "key": "soccer-england-premier-league", "eventCount": 57},
-                        {"name": "EFL Cup", "key": "soccer-england-efl-cup", "eventCount": 6},
-                        {"name": "FA Cup", "key": "soccer-england-fa-cup", "eventCount": 1},
-                        {"name": "Championship", "key": "soccer-england-championship", "eventCount": 20},
-                        {"name": "League One", "key": "soccer-england-league-one", "eventCount": 20},
-                        {"name": "EFL Trophy", "key": "soccer-england-efl-trophy", "eventCount": 1},
-                        {"name": "FA Women's Super League", "key": "soccer-england-fa-women-s-super-league", "eventCount": 7},
-                        {"name": "Isthmian League", "key": "soccer-england-isthmian-league-pr-div", "eventCount": 3},
-                        {"name": "League Two", "key": "soccer-england-league-two", "eventCount": 18},
-                        {"name": "National League", "key": "soccer-england-national-league", "eventCount": 18},
-                        {"name": "National League North", "key": "soccer-england-national-league-north", "eventCount": 3},
-                        {"name": "National League South", "key": "soccer-england-national-league-south", "eventCount": 4},
-                        {"name": "Northern Premier League", "key": "soccer-england-northern-premier-league-premier-division", "eventCount": 1},
-                        {"name": "Southern League, Premier Central", "key": "soccer-england-southern-football-league-premier-division-central", "eventCount": 1},
-                        {"name": "Southern League, Premier South", "key": "soccer-england-southern-football-league-premier-division-south", "eventCount": 1},
-                        {"name": "Premier League Cup U23", "key": "soccer-england-u23-premier-league-cup", "eventCount": 6}
-                    ]
-                },
-                {
-                    "name": "International Clubs",
-                    "key": "international-clubs",
-                    "competitions": [
-                        {"name": "UEFA Champions League", "key": "soccer-international-clubs-uefa-champions-league", "eventCount": 32},
-                        {"name": "UEFA Europa League", "key": "soccer-international-clubs-uefa-europa-league", "eventCount": 4},
-                        {"name": "UEFA Conference League", "key": "soccer-international-clubs-t6eeb-uefa-europa-conference-league", "eventCount": 2},
-                        {"name": "Club Friendly Games", "key": "soccer-international-clubs-club-friendly-games", "eventCount": 1},
-                        {"name": "FIFA Intercontinental Cup", "key": "soccer-international-clubs-ta173-fifa-intercontinental-cup", "eventCount": 1},
-                        {"name": "UEFA Women's Champions League", "key": "soccer-international-clubs-uefa-champions-league-women", "eventCount": 1}
-                    ]
-                },
-                {
-                    "name": "Germany",
-                    "key": "germany",
-                    "competitions": [
-                        {"name": "DFB Pokal", "key": "soccer-germany-dfb-pokal", "eventCount": 1},
-                        {"name": "Bundesliga", "key": "soccer-germany-bundesliga", "eventCount": 25},
-                        {"name": "2nd Bundesliga", "key": "soccer-germany-2nd-bundesliga", "eventCount": 10},
-                        {"name": "3. Liga", "key": "soccer-germany-3rd-liga", "eventCount": 11},
-                        {"name": "Regionalliga Northeast", "key": "soccer-germany-regionalliga-northeast", "eventCount": 8},
-                        {"name": "Women Bundesliga", "key": "soccer-germany-women-bundesliga", "eventCount": 5}
-                    ]
-                },
-                {
-                    "name": "Italy",
-                    "key": "italy",
-                    "competitions": [
-                        {"name": "Serie A", "key": "soccer-italy-serie-a", "eventCount": 22},
-                        {"name": "Italian Super Cup", "key": "soccer-italy-super-cup", "eventCount": 3},
-                        {"name": "Serie B", "key": "soccer-italy-serie-b", "eventCount": 12},
-                        {"name": "Campionato Primavera 1", "key": "soccer-italy-campionato-primavera-1", "eventCount": 7},
-                        {"name": "Coppa Italia", "key": "soccer-italy-coppa-italia", "eventCount": 1},
-                        {"name": "Serie A, Women", "key": "soccer-italy-serie-a-women", "eventCount": 7},
-                        {"name": "Serie C, Group A", "key": "soccer-italy-serie-c-group-c", "eventCount": 29}
-                    ]
-                },
-                {
-                    "name": "Spain",
-                    "key": "spain",
-                    "competitions": [
-                        {"name": "La Liga", "key": "soccer-spain-laliga", "eventCount": 27},
-                        {"name": "Segunda División", "key": "soccer-spain-laliga-2", "eventCount": 13},
-                        {"name": "Copa del Rey", "key": "soccer-spain-copa-del-rey", "eventCount": 1},
-                        {"name": "Segunda Federacion", "key": "soccer-spain-second-division-b", "eventCount": 44},
-                        {"name": "Primera Federacion", "key": "soccer-spain-t717f-primera-division-rfef", "eventCount": 20}
-                    ]
-                }
-                // Add more regions as needed - truncated for brevity
-            ]
-        };
+        // ==========================================
+        // CONFIGURATION & STATE
+        // ==========================================
+        const API_PROXY_URL = '/.netlify/functions/proxy';
+        
+        let currentOddsMode = 'feed'; // 'feed' or 'implied'
+        let currentEvent = null;
+        let currentCompetition = null;
+        let refreshInterval = null;
+        let changeThreshold = 2.0; // 2% threshold for odds movements
 
-        // API Configuration
-        const API_KEY = 'eyJhbGciOiJSUzI1NiIsImtpZCI6IkhKcDkyNnF3ZXBjNnF3LU9rMk4zV05pXzBrRFd6cEdwTzAxNlRJUjdRWDAiLCJ0eXAiOiJKV1QifQ.eyJhY2Nlc3NfdGllciI6InRyYWRpbmciLCJleHAiOjIwNjE1Mzc1MDIsImlhdCI6MTc0NjE3NzUwMiwianRpIjoiNTU1ODk0NjgtZjJhZi00ZGQ3LWE3MTQtZjNiNjgyMWU4OGRkIiwic3ViIjoiOGYwYTk5YTEtNTFhZi00YzJlLWFlNDUtY2MxNjgwNDVjZTc3IiwidGVuYW50IjoiY2xvdWRiZXQiLCJ1dWlkIjoiOGYwYTk5YTEtNTFhZi00YzJlLWFlNDUtY2MxNjgwNDVjZTc3In0.BW_nXSwTkxTI7C-1UzgxWLnNzo9Bo1Ed8hI9RfVLnrJa6sfsMyvQ1NrtT5t6i_emwhkRHU1hY-9i6c2c5AI4fc2mRLSNBujvrfbVHX67uB58E8TeSOZUBRi0eqfLBL7sYl1JNPZzhFkDBCBNFJZJpn40FIjIrtIiPd-G5ClaaSMRWrFUDiwA1NmyxHSfkfRpeRSnfk15qck7zSIeNeITzPbD7kZGDIeStmcHuiHfcQX3NaHaI0gyw60wmDgan83NpYQYRVLQ9C4icbNhel4n5H5FGFAxQS8IcvynqV8f-vz2t4BRGuYXBU8uhdYKgezhyQrSvX6NpwNPBJC8CWo2fA';
-        const API_URL = 'https://sports-api.cloudbet.com/pub/v2/odds/sports/soccer';
+        // ==========================================
+        // 1. DATA FETCHING (COMPETITIONS)
+        // ==========================================
 
-        // Zero-Inflated Poisson Distribution Calculator
-        class ZIPDistribution {
-            constructor(lambda, pi) {
-                this.lambda = lambda;  // Poisson rate parameter
-                this.pi = pi;          // Zero-inflation probability
-            }
+        async function initApp() {
+            const list = document.getElementById('competitionsList');
+            list.innerHTML = '<div class="loading-state" style="padding:20px;">Loading competitions...</div>';
 
-            // Poisson probability mass function
-            poissonPMF(k) {
-                return Math.exp(-this.lambda) * Math.pow(this.lambda, k) / this.factorial(k);
-            }
+            try {
+                // Determine environment
+                const isNetlify = window.location.hostname.includes('netlify.app') || 
+                                 window.location.hostname.includes('netlify.com');
+                
+                let rawCompetitions = [];
 
-            factorial(n) {
-                if (n <= 1) return 1;
-                return n * this.factorial(n - 1);
-            }
-
-            // ZIP probability mass function
-            zipPMF(k) {
-                if (k === 0) {
-                    return this.pi + (1 - this.pi) * this.poissonPMF(0);
+                if (isNetlify) {
+                    // Fetch all soccer competitions via proxy
+                    const response = await fetch(`${API_PROXY_URL}/soccer`);
+                    if (!response.ok) throw new Error(`API Error: ${response.status}`);
+                    
+                    const data = await response.json();
+                    rawCompetitions = data.competitions || [];
                 } else {
-                    return (1 - this.pi) * this.poissonPMF(k);
+                    console.warn("Local Dev: Cannot fetch live competitions without proxy. Using simplified mock.");
+                    rawCompetitions = [
+                        { name: "Premier League", key: "soccer-england-premier-league", eventCount: 10, category: { name: "England" } },
+                        { name: "La Liga", key: "soccer-spain-laliga", eventCount: 8, category: { name: "Spain" } },
+                        { name: "Bundesliga", key: "soccer-germany-bundesliga", eventCount: 6, category: { name: "Germany" } }
+                    ];
                 }
-            }
 
-            // Calculate probability of exactly k goals
-            probability(k) {
-                return this.zipPMF(k);
-            }
-
-            // Calculate probability of k or more goals
-            probabilityAtLeast(k) {
-                let sum = 0;
-                for (let i = k; i <= k + 10; i++) {
-                    sum += this.zipPMF(i);
+                if (rawCompetitions.length > 0) {
+                    const groupedData = groupCompetitions(rawCompetitions);
+                    renderSidebar(groupedData);
+                } else {
+                    list.innerHTML = '<div class="empty-state">No competitions found.</div>';
                 }
-                return sum;
-            }
 
-            // Calculate probability of fewer than k goals
-            probabilityLessThan(k) {
-                let sum = 0;
-                for (let i = 0; i < k; i++) {
-                    sum += this.zipPMF(i);
-                }
-                return sum;
+            } catch (error) {
+                console.error("Init Error:", error);
+                list.innerHTML = `<div class="empty-state" style="color: #ff4444">Error: ${error.message}</div>`;
             }
         }
 
-        // Calculate market odds using ZIP distribution
-        function calculateZIPOdds(homeOdds, awayOdds, drawOdds) {
-            // Convert odds to implied probabilities
-            const homeProb = 1 / homeOdds;
-            const awayProb = 1 / awayOdds;
-            const drawProb = 1 / drawOdds;
+        function groupCompetitions(competitions) {
+            const groups = {};
 
-            // Estimate lambda parameters from implied probabilities
-            const homeLambda = -Math.log(drawProb) * 0.8;
-            const awayLambda = -Math.log(drawProb) * 0.8;
+            competitions.forEach(comp => {
+                if (!comp.name) return;
+                const category = comp.category ? comp.category.name : 'International';
+                
+                if (!groups[category]) groups[category] = [];
 
-            // Zero-inflation parameter (estimate based on defensive strength)
-            const pi = Math.max(0.05, Math.min(0.3, drawProb * 0.5));
-
-            // Create ZIP distributions for home and away
-            const homeZIP = new ZIPDistribution(homeLambda, pi);
-            const awayZIP = new ZIPDistribution(awayLambda, pi);
-
-            // Calculate various market probabilities
-            const markets = {
-                over_2_5: {
-                    label: 'Over 2.5 Goals',
-                    probability: calculateTotalGoalsProbability(homeZIP, awayZIP, 3, 'over'),
-                    odds: null
-                },
-                under_2_5: {
-                    label: 'Under 2.5 Goals',
-                    probability: calculateTotalGoalsProbability(homeZIP, awayZIP, 3, 'under'),
-                    odds: null
-                },
-                btts_yes: {
-                    label: 'Both Teams to Score',
-                    probability: (1 - homeZIP.probability(0)) * (1 - awayZIP.probability(0)),
-                    odds: null
-                },
-                btts_no: {
-                    label: 'BTTS No',
-                    probability: homeZIP.probability(0) + awayZIP.probability(0) - homeZIP.probability(0) * awayZIP.probability(0),
-                    odds: null
-                },
-                home_win: {
-                    label: 'Home Win',
-                    probability: homeProb,
-                    odds: homeOdds
-                },
-                draw: {
-                    label: 'Draw',
-                    probability: drawProb,
-                    odds: drawOdds
-                },
-                away_win: {
-                    label: 'Away Win',
-                    probability: awayProb,
-                    odds: awayOdds
-                }
-            };
-
-            // Convert probabilities to fair odds (removing margin)
-            Object.keys(markets).forEach(key => {
-                if (!markets[key].odds) {
-                    markets[key].odds = 1 / markets[key].probability;
-                }
+                groups[category].push({
+                    name: comp.name,
+                    key: comp.key,
+                    eventCount: comp.eventCount || 0
+                });
             });
 
-            return {
-                markets,
-                zipParams: {
-                    homeLambda: homeLambda.toFixed(3),
-                    awayLambda: awayLambda.toFixed(3),
-                    pi: pi.toFixed(3)
-                }
-            };
+            // Sort categories alphabetically, then competitions by event count
+            return Object.keys(groups).sort().map(category => ({
+                name: category,
+                competitions: groups[category].sort((a, b) => b.eventCount - a.eventCount)
+            }));
         }
 
-        function calculateTotalGoalsProbability(homeZIP, awayZIP, threshold, type) {
-            let prob = 0;
-            for (let h = 0; h <= 10; h++) {
-                for (let a = 0; a <= 10; a++) {
-                    const total = h + a;
-                    if (type === 'over' && total >= threshold) {
-                        prob += homeZIP.probability(h) * awayZIP.probability(a);
-                    } else if (type === 'under' && total < threshold) {
-                        prob += homeZIP.probability(h) * awayZIP.probability(a);
-                    }
-                }
-            }
-            return prob;
-        }
+        // ==========================================
+        // 2. UI RENDERING (SIDEBAR)
+        // ==========================================
 
-        // Load competitions into sidebar with events
-        function loadCompetitions() {
+        function renderSidebar(categories) {
             const list = document.getElementById('competitionsList');
             list.innerHTML = '';
 
-            competitionsData.categories.forEach(category => {
+            categories.forEach(category => {
+                if (category.competitions.length === 0) return;
+
                 const regionHeader = document.createElement('div');
                 regionHeader.className = 'region-header';
                 regionHeader.textContent = category.name;
@@ -333,12 +176,10 @@
                         <span class="event-count">${comp.eventCount}</span>
                     `;
                     
-                    // Create events container
                     const eventsContainer = document.createElement('div');
                     eventsContainer.className = 'events-sublist';
                     eventsContainer.dataset.competitionKey = comp.key;
                     
-                    // Click to expand/collapse and load events
                     item.addEventListener('click', (e) => {
                         e.stopPropagation();
                         toggleCompetition(item, eventsContainer, comp);
@@ -352,31 +193,20 @@
             });
         }
 
-        // Toggle competition expansion and load events
         async function toggleCompetition(competitionItem, eventsContainer, competition) {
             const isExpanded = competitionItem.classList.contains('expanded');
             
-            // Collapse all other competitions
-            document.querySelectorAll('.competition-item').forEach(item => {
-                item.classList.remove('expanded');
-            });
-            document.querySelectorAll('.events-sublist').forEach(list => {
-                list.classList.remove('expanded');
-            });
+            // Collapse others
+            document.querySelectorAll('.competition-item').forEach(item => item.classList.remove('expanded'));
+            document.querySelectorAll('.events-sublist').forEach(list => list.classList.remove('expanded'));
             
-            if (isExpanded) {
-                // Just collapse
-                return;
-            }
+            if (isExpanded) return;
             
-            // Expand this competition
             competitionItem.classList.add('expanded');
             eventsContainer.classList.add('expanded');
             
-            // Load events if not already loaded
             if (eventsContainer.children.length === 0) {
                 eventsContainer.innerHTML = '<div style="padding: 10px 20px; color: var(--text-muted); font-size: 12px;">Loading events...</div>';
-                
                 try {
                     const events = await fetchCompetitionEvents(competition);
                     renderEventsList(eventsContainer, events, competition);
@@ -386,16 +216,20 @@
             }
         }
 
-        // Fetch events for a competition
+        // ==========================================
+        // 3. DATA FETCHING (EVENTS)
+        // ==========================================
+
         async function fetchCompetitionEvents(competition) {
             const isNetlify = window.location.hostname.includes('netlify.app') || 
                              window.location.hostname.includes('netlify.com');
             
             if (isNetlify) {
-                const apiUrl = `/.netlify/functions/proxy/${competition.key}`;
+                const apiUrl = `${API_PROXY_URL}/${competition.key}`;
                 const response = await fetch(apiUrl);
                 if (!response.ok) throw new Error(`API returned ${response.status}`);
                 const data = await response.json();
+                
                 return data.events?.filter(event => 
                     event.type === 'EVENT_TYPE_EVENT' &&
                     event.home && event.away &&
@@ -406,7 +240,6 @@
             }
         }
 
-        // Render events list in sidebar
         function renderEventsList(container, events, competition) {
             if (events.length === 0) {
                 container.innerHTML = '<div style="padding: 10px 20px; color: var(--text-muted); font-size: 12px;">No events available</div>';
@@ -420,10 +253,7 @@
                 
                 const eventDate = new Date(event.cutoffTime);
                 const formattedTime = eventDate.toLocaleString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
+                    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
                 });
                 
                 eventItem.innerHTML = `
@@ -440,167 +270,142 @@
             });
         }
 
-        // Select and display event
+        // ==========================================
+        // 4. MAIN ODDS DISPLAY & LOGIC
+        // ==========================================
+
         function selectEvent(eventItem, event, competition) {
-            // Update active state
-            document.querySelectorAll('.event-item').forEach(item => {
-                item.classList.remove('active');
-            });
+            document.querySelectorAll('.event-item').forEach(item => item.classList.remove('active'));
             eventItem.classList.add('active');
             
-            // Display event details and start refresh
             displayEventDetails(event, competition);
             startAutoRefresh();
         }
 
-        // Generate mock events for demonstration
-        function generateMockEvents(competition) {
-            const teams = {
-                'soccer-england-premier-league': [
-                    ['Manchester City', 'Liverpool'], ['Arsenal', 'Chelsea'], 
-                    ['Manchester United', 'Tottenham'], ['Newcastle', 'Brighton']
-                ],
-                'soccer-spain-laliga': [
-                    ['Real Madrid', 'Barcelona'], ['Atletico Madrid', 'Sevilla'],
-                    ['Real Sociedad', 'Valencia'], ['Villarreal', 'Athletic Bilbao']
-                ],
-                'soccer-germany-bundesliga': [
-                    ['Bayern Munich', 'Borussia Dortmund'], ['RB Leipzig', 'Bayer Leverkusen'],
-                    ['Union Berlin', 'Eintracht Frankfurt'], ['Freiburg', 'Wolfsburg']
-                ],
-                'soccer-italy-serie-a': [
-                    ['Inter Milan', 'AC Milan'], ['Juventus', 'Napoli'],
-                    ['Roma', 'Lazio'], ['Atalanta', 'Fiorentina']
-                ],
-                'default': [
-                    ['Home Team A', 'Away Team A'], ['Home Team B', 'Away Team B'],
-                    ['Home Team C', 'Away Team C'], ['Home Team D', 'Away Team D']
-                ]
-            };
-
-            const matchups = teams[competition.key] || teams['default'];
-            const now = new Date();
+        function displayEventDetails(event, competition) {
+            currentEvent = event;
+            currentCompetition = competition;
             
-            return matchups.map((teams, index) => ({
-                home: { name: teams[0] },
-                away: { name: teams[1] },
-                cutoffTime: new Date(now.getTime() + (index + 1) * 86400000).toISOString(),
-                type: 'EVENT_TYPE_EVENT',
-                markets: {
-                    'soccer.match_odds': {
-                        submarkets: {
-                            'period=ft': {
-                                selections: [
-                                    { outcome: 'home', price: 2.1 + Math.random() * 0.5, probability: 0.4 },
-                                    { outcome: 'draw', price: 3.2 + Math.random() * 0.4, probability: 0.28 },
-                                    { outcome: 'away', price: 2.8 + Math.random() * 0.6, probability: 0.32 }
-                                ]
-                            }
-                        }
-                    },
-                    'soccer.total_goals': {
-                        submarkets: {
-                            'period=ft': {
-                                selections: [
-                                    { outcome: 'over', params: 'total=2.5', price: 1.85 + Math.random() * 0.2, probability: 0.52 },
-                                    { outcome: 'under', params: 'total=2.5', price: 1.95 + Math.random() * 0.15, probability: 0.48 }
-                                ]
-                            }
-                        }
-                    }
-                }
-            }));
+            document.getElementById('contentTitle').textContent = `${event.home.name} vs ${event.away.name}`;
+            
+            const eventDate = new Date(event.cutoffTime);
+            const formattedDate = eventDate.toLocaleString('en-US', {
+                weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+            });
+            
+            document.getElementById('contentSubtitle').textContent = `${competition.name} • ${formattedDate}`;
+            renderOdds();
         }
 
-        // Load competition data from Cloudbet API
-        async function loadCompetitionData(competition) {
-            // Update active state
-            document.querySelectorAll('.competition-item').forEach(item => {
-                item.classList.remove('active');
-            });
-            event.currentTarget.classList.add('active');
-
-            // Update header
-            document.getElementById('contentTitle').textContent = competition.name;
-            document.getElementById('contentSubtitle').textContent = `Loading events...`;
-
-            // Show loading state
+        function renderOdds() {
+            if (!currentEvent) return;
+            
             const contentArea = document.getElementById('contentArea');
-            contentArea.innerHTML = `
-                <div class="loading-state">
-                    <div class="loading-spinner"></div>
-                    <h3>Loading events...</h3>
-                    <p>Fetching odds from Cloudbet API</p>
+            const matchOddsMarket = currentEvent.markets?.['soccer.match_odds']?.submarkets?.['period=ft'];
+            const totalGoalsMarket = currentEvent.markets?.['soccer.total_goals']?.submarkets?.['period=ft'];
+            
+            // Calculate ZIP stats for extra insights (if needed later)
+            // const homePrice = matchOddsMarket?.selections?.find(s => s.outcome === 'home')?.price;
+            // const zipStats = homePrice ? calculateZIPOdds(homePrice, ...) : null;
+
+            let html = '<div style="max-width: 1200px;">';
+            
+            // --- Match Odds Section ---
+            if (matchOddsMarket) {
+                const homeSel = matchOddsMarket.selections?.find(s => s.outcome === 'home');
+                const drawSel = matchOddsMarket.selections?.find(s => s.outcome === 'draw');
+                const awaySel = matchOddsMarket.selections?.find(s => s.outcome === 'away');
+                
+                if (homeSel && drawSel && awaySel) {
+                    const feedOdds = [homeSel.price, drawSel.price, awaySel.price];
+                    const margin = calculateMargin(feedOdds);
+                    
+                    let displayOdds = currentOddsMode === 'implied' ? toImpliedOdds(feedOdds) : feedOdds;
+                    let displayProbs = displayOdds.map(odd => 1 / odd);
+                    
+                    html += `
+                        <div class="market-section">
+                            <h3>
+                                Match Odds (1X2)
+                                ${currentOddsMode === 'feed' ? `<span class="margin-badge">Margin: ${margin}%</span>` : ''}
+                            </h3>
+                            <div class="markets-grid">
+                                ${renderMarketCard('Home Win', displayOdds[0], displayProbs[0])}
+                                ${renderMarketCard('Draw', displayOdds[1], displayProbs[1])}
+                                ${renderMarketCard('Away Win', displayOdds[2], displayProbs[2])}
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+            
+            // --- Total Goals Section ---
+            if (totalGoalsMarket && totalGoalsMarket.selections) {
+                const goalLines = {};
+                totalGoalsMarket.selections.forEach(sel => {
+                    const match = sel.params.match(/total=([\d.]+)/);
+                    if (match) {
+                        const total = match[1];
+                        if (!goalLines[total]) goalLines[total] = {};
+                        goalLines[total][sel.outcome] = sel;
+                    }
+                });
+                
+                html += `<div class="market-section"><h3>Total Goals</h3>`;
+                
+                ['2.5', '1.5', '3.5', '2.75', '3.25'].forEach(line => {
+                    if (goalLines[line] && goalLines[line].over && goalLines[line].under) {
+                        const feedOdds = [goalLines[line].over.price, goalLines[line].under.price];
+                        const margin = calculateMargin(feedOdds);
+                        let displayOdds = currentOddsMode === 'implied' ? toImpliedOdds(feedOdds) : feedOdds;
+                        let displayProbs = displayOdds.map(odd => 1 / odd);
+                        
+                        html += `
+                            <div class="goal-line-section">
+                                <div class="goal-line-header">Over/Under ${line} ${currentOddsMode === 'feed' ? `<span style="color: #ff8800; margin-left:8px;">+${margin}%</span>` : ''}</div>
+                                <div class="goal-line-grid">
+                                    ${renderMarketCard(`Over ${line}`, displayOdds[0], displayProbs[0])}
+                                    ${renderMarketCard(`Under ${line}`, displayOdds[1], displayProbs[1])}
+                                </div>
+                            </div>
+                        `;
+                    }
+                });
+                html += `</div>`;
+            }
+            
+            html += '</div>';
+            contentArea.innerHTML = html;
+        }
+
+        function renderMarketCard(label, odds, prob) {
+            return `
+                <div class="market-card">
+                    <div class="market-label">${label}</div>
+                    <div class="market-odds">${odds.toFixed(2)}</div>
+                    <div class="market-probability">${(prob * 100).toFixed(1)}%</div>
                 </div>
             `;
-
-            try {
-                // Use Netlify function when deployed, fallback to mock data locally
-                const isNetlify = window.location.hostname.includes('netlify.app') || 
-                                 window.location.hostname.includes('netlify.com');
-                
-                let competitionEvents = [];
-                
-                if (isNetlify) {
-                    // Use Netlify serverless function
-                    const apiUrl = `/.netlify/functions/proxy/${competition.key}`;
-                    const response = await fetch(apiUrl);
-                    
-                    if (!response.ok) throw new Error(`API returned ${response.status}`);
-                    
-                    const data = await response.json();
-                    competitionEvents = data.events?.filter(event => 
-                        event.type === 'EVENT_TYPE_EVENT' &&
-                        event.home && event.away &&
-                        event.markets?.['soccer.match_odds']
-                    ) || [];
-                } else {
-                    // Local development - use mock data
-                    competitionEvents = generateMockEvents(competition);
-                }
-
-                // Update subtitle
-                const suffix = isNetlify ? '' : ' (Demo Mode)';
-                document.getElementById('contentSubtitle').textContent = 
-                    `${competitionEvents.length} event${competitionEvents.length !== 1 ? 's' : ''}${suffix}`;
-
-                if (competitionEvents.length === 0) {
-                    throw new Error('No events found');
-                }
-
-                renderEvents(competitionEvents);
-
-            } catch (error) {
-                console.warn('API fetch failed, using mock data:', error.message);
-                const mockEvents = generateMockEvents(competition);
-                document.getElementById('contentSubtitle').textContent = 
-                    `${mockEvents.length} events (Demo Mode)`;
-                renderEvents(mockEvents);
-            }
         }
 
-        // State
-        let currentOddsMode = 'feed'; // 'feed' or 'implied'
-        let currentEvent = null;
-        let currentCompetition = null;
-        let oddsHistory = {}; // Store previous odds for comparison
-        let refreshInterval = null;
-        let changeThreshold = 5; // Default 5% change threshold
+        // ==========================================
+        // 5. ODDS MOVEMENT TRACKING
+        // ==========================================
 
-        // Start auto-refresh
         function startAutoRefresh() {
             if (refreshInterval) clearInterval(refreshInterval);
-            refreshInterval = setInterval(() => {
-                if (currentEvent && currentCompetition) {
-                    refreshEventOdds();
-                }
-            }, 15000); // 15 seconds
+            // Refresh every 15 seconds
+            refreshInterval = setInterval(refreshEventOdds, 15000); 
         }
 
-        // Refresh current event odds
         async function refreshEventOdds() {
+            if (!currentEvent || !currentCompetition) return;
+
             try {
+                // Fetch fresh data for the entire competition
                 const events = await fetchCompetitionEvents(currentCompetition);
+                
+                // Find the specific event again
                 const updatedEvent = events.find(e => 
                     e.home?.name === currentEvent.home?.name && 
                     e.away?.name === currentEvent.away?.name
@@ -608,6 +413,7 @@
                 
                 if (updatedEvent) {
                     detectOddsChanges(currentEvent, updatedEvent);
+                    // CRITICAL: Update currentEvent to the new one so next comparison is valid
                     currentEvent = updatedEvent;
                     renderOdds();
                 }
@@ -616,12 +422,13 @@
             }
         }
 
-        // Detect and log odds changes
         function detectOddsChanges(oldEvent, newEvent) {
             const matchKey = `${oldEvent.home.name}-${oldEvent.away.name}`;
             
-            const oldMarket = oldEvent.markets?.['soccer.match_odds']?.submarkets?.['period=ft'];
-            const newMarket = newEvent.markets?.['soccer.match_odds']?.submarkets?.['period=ft'];
+            // Helper to safe access
+            const getMarket = (e) => e.markets?.['soccer.match_odds']?.submarkets?.['period=ft'];
+            const oldMarket = getMarket(oldEvent);
+            const newMarket = getMarket(newEvent);
             
             if (!oldMarket || !newMarket) return;
             
@@ -636,7 +443,7 @@
                         addOddsChange({
                             time: new Date(),
                             match: matchKey,
-                            market: `1X2 - ${outcome}`,
+                            market: `1X2 - ${outcome.toUpperCase()}`,
                             oldOdds: oldSel.price,
                             newOdds: newSel.price,
                             change: change
@@ -646,10 +453,11 @@
             });
         }
 
-        // Add change to history
         function addOddsChange(change) {
-            const changesContainer = document.getElementById('oddsChanges');
-            if (!changesContainer) return;
+            const container = document.getElementById('oddsChanges');
+            // Remove "empty" message if it exists
+            const emptyMsg = container.querySelector('.odds-changes-empty');
+            if (emptyMsg) emptyMsg.remove();
             
             const changeEl = document.createElement('div');
             changeEl.className = 'odds-change-item';
@@ -666,167 +474,76 @@
                 </div>
             `;
             
-            changesContainer.insertBefore(changeEl, changesContainer.firstChild);
+            container.insertBefore(changeEl, container.firstChild);
             
-            // Keep only last 20 changes
-            while (changesContainer.children.length > 20) {
-                changesContainer.removeChild(changesContainer.lastChild);
+            // Limit history
+            if (container.children.length > 20) {
+                container.removeChild(container.lastChild);
             }
         }
 
-        // Display event details in central area
-        function displayEventDetails(event, competition) {
-            currentEvent = event;
-            currentCompetition = competition;
-            
-            document.getElementById('contentTitle').textContent = `${event.home.name} vs ${event.away.name}`;
-            
-            const eventDate = new Date(event.cutoffTime);
-            const formattedDate = eventDate.toLocaleString('en-US', {
-                weekday: 'short',
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-            
-            document.getElementById('contentSubtitle').textContent = `${competition.name} • ${formattedDate}`;
-            
-            renderOdds();
-        }
+        // ==========================================
+        // 6. MATH & UTILITIES
+        // ==========================================
 
-        // Calculate margin from odds (bookmaker overround)
         function calculateMargin(odds) {
             const sum = odds.reduce((acc, odd) => acc + (1 / odd), 0);
             return ((sum - 1) * 100).toFixed(2);
         }
 
-        // Convert to implied odds (no margin)
         function toImpliedOdds(odds) {
             const sum = odds.reduce((acc, odd) => acc + (1 / odd), 0);
             return odds.map(odd => odd * sum);
         }
 
-        // Render odds based on current mode
-        function renderOdds() {
-            if (!currentEvent) return;
-            
-            const contentArea = document.getElementById('contentArea');
-            const matchOddsMarket = currentEvent.markets?.['soccer.match_odds']?.submarkets?.['period=ft'];
-            const totalGoalsMarket = currentEvent.markets?.['soccer.total_goals']?.submarkets?.['period=ft'];
-            
-            let html = '<div style="max-width: 1200px;">';
-            
-            // Match Odds Section
-            if (matchOddsMarket) {
-                const homeSelection = matchOddsMarket.selections?.find(s => s.outcome === 'home');
-                const drawSelection = matchOddsMarket.selections?.find(s => s.outcome === 'draw');
-                const awaySelection = matchOddsMarket.selections?.find(s => s.outcome === 'away');
-                
-                if (homeSelection && drawSelection && awaySelection) {
-                    const feedOdds = [homeSelection.price, drawSelection.price, awaySelection.price];
-                    const margin = calculateMargin(feedOdds);
-                    
-                    let displayOdds, displayProbs;
-                    if (currentOddsMode === 'implied') {
-                        displayOdds = toImpliedOdds(feedOdds);
-                        displayProbs = displayOdds.map(odd => 1 / odd);
-                    } else {
-                        displayOdds = feedOdds;
-                        displayProbs = feedOdds.map(odd => 1 / odd);
-                    }
-                    
-                    html += `
-                        <div class="market-section">
-                            <h3>
-                                Match Odds (1X2)
-                                ${currentOddsMode === 'feed' ? `<span class="margin-badge">Margin: ${margin}%</span>` : ''}
-                            </h3>
-                            <div class="markets-grid">
-                                <div class="market-card">
-                                    <div class="market-label">Home Win</div>
-                                    <div class="market-odds">${displayOdds[0].toFixed(2)}</div>
-                                    <div class="market-probability">${(displayProbs[0] * 100).toFixed(1)}%</div>
-                                </div>
-                                <div class="market-card">
-                                    <div class="market-label">Draw</div>
-                                    <div class="market-odds">${displayOdds[1].toFixed(2)}</div>
-                                    <div class="market-probability">${(displayProbs[1] * 100).toFixed(1)}%</div>
-                                </div>
-                                <div class="market-card">
-                                    <div class="market-label">Away Win</div>
-                                    <div class="market-odds">${displayOdds[2].toFixed(2)}</div>
-                                    <div class="market-probability">${(displayProbs[2] * 100).toFixed(1)}%</div>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                }
-            }
-            
-            // Total Goals Section
-            if (totalGoalsMarket && totalGoalsMarket.selections) {
-                const goalLines = {};
-                totalGoalsMarket.selections.forEach(sel => {
-                    const match = sel.params.match(/total=([\d.]+)/);
-                    if (match) {
-                        const total = match[1];
-                        if (!goalLines[total]) goalLines[total] = {};
-                        goalLines[total][sel.outcome] = sel;
-                    }
-                });
-                
-                html += `<div class="market-section"><h3>Total Goals</h3>`;
-                
-                const popularLines = ['2.5', '1.5', '3.5', '2.75', '3.25'];
-                popularLines.forEach(line => {
-                    if (goalLines[line] && goalLines[line].over && goalLines[line].under) {
-                        const over = goalLines[line].over;
-                        const under = goalLines[line].under;
-                        
-                        const feedOdds = [over.price, under.price];
-                        const margin = calculateMargin(feedOdds);
-                        
-                        let displayOdds, displayProbs;
-                        if (currentOddsMode === 'implied') {
-                            displayOdds = toImpliedOdds(feedOdds);
-                            displayProbs = displayOdds.map(odd => 1 / odd);
-                        } else {
-                            displayOdds = feedOdds;
-                            displayProbs = feedOdds.map(odd => 1 / odd);
+        // Mock Data Generator (for local dev)
+        function generateMockEvents(competition) {
+            const now = new Date();
+            // Just return a few generic events for demo
+            return [1, 2, 3].map(i => ({
+                home: { name: `Home Team ${i}` },
+                away: { name: `Away Team ${i}` },
+                cutoffTime: new Date(now.getTime() + i * 86400000).toISOString(),
+                type: 'EVENT_TYPE_EVENT',
+                markets: {
+                    'soccer.match_odds': {
+                        submarkets: {
+                            'period=ft': {
+                                selections: [
+                                    { outcome: 'home', price: 2.0 + Math.random(), probability: 0.45 },
+                                    { outcome: 'draw', price: 3.0 + Math.random(), probability: 0.25 },
+                                    { outcome: 'away', price: 3.5 + Math.random(), probability: 0.30 }
+                                ]
+                            }
                         }
-                        
-                        html += `
-                            <div class="goal-line-section">
-                                <div class="goal-line-header">
-                                    Over/Under ${line}
-                                    ${currentOddsMode === 'feed' ? `<span style="color: #ff8800; margin-left: 8px;">+${margin}%</span>` : ''}
-                                </div>
-                                <div class="goal-line-grid">
-                                    <div class="market-card">
-                                        <div class="market-label">Over ${line}</div>
-                                        <div class="market-odds">${displayOdds[0].toFixed(2)}</div>
-                                        <div class="market-probability">${(displayProbs[0] * 100).toFixed(1)}%</div>
-                                    </div>
-                                    <div class="market-card">
-                                        <div class="market-label">Under ${line}</div>
-                                        <div class="market-odds">${displayOdds[1].toFixed(2)}</div>
-                                        <div class="market-probability">${(displayProbs[1] * 100).toFixed(1)}%</div>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
+                    },
+                    'soccer.total_goals': {
+                        submarkets: {
+                            'period=ft': {
+                                selections: [
+                                    { outcome: 'over', params: 'total=2.5', price: 1.9, probability: 0.5 },
+                                    { outcome: 'under', params: 'total=2.5', price: 1.9, probability: 0.5 }
+                                ]
+                            }
+                        }
                     }
-                });
-                
-                html += `</div>`;
-            }
-            
-            html += '</div>';
-            contentArea.innerHTML = html;
+                }
+            }));
         }
 
-        // Toggle buttons
+        // ZIP Distribution Class (Preserved from original)
+        class ZIPDistribution {
+            constructor(lambda, pi) { this.lambda = lambda; this.pi = pi; }
+            poissonPMF(k) { return Math.exp(-this.lambda) * Math.pow(this.lambda, k) / this.factorial(k); }
+            factorial(n) { return n <= 1 ? 1 : n * this.factorial(n - 1); }
+            zipPMF(k) { return k === 0 ? this.pi + (1 - this.pi) * this.poissonPMF(0) : (1 - this.pi) * this.poissonPMF(k); }
+            probability(k) { return this.zipPMF(k); }
+        }
+
+        // ==========================================
+        // 7. EVENT LISTENERS
+        // ==========================================
+
         document.getElementById('feedOddsBtn').addEventListener('click', () => {
             currentOddsMode = 'feed';
             document.getElementById('feedOddsBtn').classList.add('active');
@@ -841,32 +558,28 @@
             if (currentEvent) renderOdds();
         });
 
-        // Threshold control
         document.getElementById('thresholdInput').addEventListener('change', (e) => {
-            changeThreshold = parseFloat(e.target.value) || 5;
+            changeThreshold = parseFloat(e.target.value) || 2.0;
         });
 
-        // Search functionality
         document.getElementById('searchInput').addEventListener('input', (e) => {
             const searchTerm = e.target.value.toLowerCase();
             document.querySelectorAll('.competition-item').forEach(item => {
                 const name = item.querySelector('.competition-name').textContent.toLowerCase();
-                item.style.display = name.includes(searchTerm) ? 'flex' : 'none';
+                const visible = name.includes(searchTerm);
+                item.style.display = visible ? 'flex' : 'none';
             });
-
-            // Also hide/show region headers
+            // Update region header visibility
             document.querySelectorAll('.region-group').forEach(group => {
                 const visibleItems = Array.from(group.querySelectorAll('.competition-item'))
                     .filter(item => item.style.display !== 'none');
-                const regionHeader = group.previousElementSibling;
-                if (regionHeader && regionHeader.classList.contains('region-header')) {
-                    regionHeader.style.display = visibleItems.length > 0 ? 'block' : 'none';
-                }
+                const header = group.previousElementSibling;
+                if (header) header.style.display = visibleItems.length > 0 ? 'block' : 'none';
             });
         });
 
-        // Initialize
-        loadCompetitions();
+        // Start App
+        initApp();
     </script>
 </body>
 </html>
