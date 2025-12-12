@@ -3,8 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Betting Feed Provider - ZIP Distribution</title>
+    <title>Betting Feed Provider</title>
     <link rel="stylesheet" href="styles.css">
+    <style>
+        /* Extra styles for the new refresh timer */
+        .refresh-timer {
+            margin-left: 12px;
+            font-size: 11px;
+            font-family: 'JetBrains Mono', monospace;
+            background: rgba(0, 255, 136, 0.1);
+            color: var(--accent-primary);
+            padding: 4px 8px;
+            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .refresh-timer.visible {
+            opacity: 1;
+        }
+        .refresh-icon {
+            font-size: 10px;
+        }
+        .refresh-icon.spinning {
+            animation: spin 1s linear infinite;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -30,6 +56,10 @@
                     <div class="subtitle">
                         <span class="status-dot"></span>
                         <span id="contentSubtitle">Choose from the sidebar to view betting odds</span>
+                        <span id="refreshBadge" class="refresh-timer">
+                            <span class="refresh-icon">↻</span>
+                            <span id="refreshText">Next update: 15s</span>
+                        </span>
                     </div>
                 </div>
                 <div class="odds-toggle">
@@ -75,8 +105,13 @@
         let currentOddsMode = 'feed'; // 'feed' or 'implied'
         let currentEvent = null;
         let currentCompetition = null;
-        let refreshInterval = null;
-        let changeThreshold = 2.0; // 2% threshold for odds movements
+        
+        // Refresh State
+        let refreshIntervalHandle = null;
+        let countdownHandle = null;
+        let secondsRemaining = 15;
+        const REFRESH_SECONDS = 15;
+        let changeThreshold = 2.0;
 
         // ==========================================
         // 1. DATA FETCHING (COMPETITIONS)
@@ -96,13 +131,10 @@
                     
                     const data = await response.json();
                     
-                    // FIX: Handle the hierarchical data structure (Categories -> Competitions)
                     if (data.categories && Array.isArray(data.categories)) {
-                        // The API returned the grouped structure directly
                         renderSidebar(data.categories);
                     } 
                     else if (data.competitions && Array.isArray(data.competitions)) {
-                        // Fallback: The API returned a flat list
                         const grouped = groupCompetitions(data.competitions);
                         renderSidebar(grouped);
                     } else {
@@ -110,7 +142,6 @@
                         list.innerHTML = '<div class="empty-state">No competitions found (Invalid Format)</div>';
                     }
                 } else {
-                    // Local Dev Mock Data
                     console.warn("Local Dev: Using mock data.");
                     const mockCategories = [
                         {
@@ -136,23 +167,18 @@
             }
         }
 
-        // Helper to group flat list (only used if API returns flat list)
         function groupCompetitions(competitions) {
             const groups = {};
-
             competitions.forEach(comp => {
                 if (!comp.name) return;
                 const category = comp.category ? comp.category.name : 'International';
-                
                 if (!groups[category]) groups[category] = [];
-
                 groups[category].push({
                     name: comp.name,
                     key: comp.key,
                     eventCount: comp.eventCount || 0
                 });
             });
-
             return Object.keys(groups).sort().map(category => ({
                 name: category,
                 competitions: groups[category].sort((a, b) => b.eventCount - a.eventCount)
@@ -167,13 +193,11 @@
             const list = document.getElementById('competitionsList');
             list.innerHTML = '';
 
-            // Ensure categories are valid
             if (!categories || categories.length === 0) {
                 list.innerHTML = '<div class="empty-state">No competitions found.</div>';
                 return;
             }
 
-            // Sort categories alphabetically
             categories.sort((a, b) => a.name.localeCompare(b.name));
 
             categories.forEach(category => {
@@ -187,7 +211,6 @@
                 const regionGroup = document.createElement('div');
                 regionGroup.className = 'region-group';
 
-                // Sort competitions by event count (descending)
                 const sortedComps = [...category.competitions].sort((a, b) => b.eventCount - a.eventCount);
 
                 sortedComps.forEach(comp => {
@@ -222,7 +245,6 @@
         async function toggleCompetition(competitionItem, eventsContainer, competition) {
             const isExpanded = competitionItem.classList.contains('expanded');
             
-            // Collapse others
             document.querySelectorAll('.competition-item').forEach(item => item.classList.remove('expanded'));
             document.querySelectorAll('.events-sublist').forEach(list => list.classList.remove('expanded'));
             
@@ -305,7 +327,7 @@
             eventItem.classList.add('active');
             
             displayEventDetails(event, competition);
-            startAutoRefresh();
+            startAutoRefresh(); // Start the timer loop
         }
 
         function displayEventDetails(event, competition) {
@@ -411,18 +433,50 @@
         }
 
         // ==========================================
-        // 5. ODDS MOVEMENT TRACKING
+        // 5. ODDS MOVEMENT TRACKING & REFRESH LOGIC
         // ==========================================
 
         function startAutoRefresh() {
-            if (refreshInterval) clearInterval(refreshInterval);
-            refreshInterval = setInterval(refreshEventOdds, 15000); 
+            // Reset existing timers
+            if (countdownHandle) clearInterval(countdownHandle);
+            
+            // Show badge
+            const badge = document.getElementById('refreshBadge');
+            badge.classList.add('visible');
+            
+            secondsRemaining = REFRESH_SECONDS;
+            updateRefreshUI(false);
+            
+            countdownHandle = setInterval(() => {
+                secondsRemaining--;
+                
+                if (secondsRemaining <= 0) {
+                    refreshEventOdds();
+                    secondsRemaining = REFRESH_SECONDS;
+                }
+                
+                updateRefreshUI(secondsRemaining === REFRESH_SECONDS); // Pass true if we just reset (fetching)
+            }, 1000);
+        }
+
+        function updateRefreshUI(isFetching) {
+            const textEl = document.getElementById('refreshText');
+            const iconEl = document.querySelector('.refresh-icon');
+            
+            if (isFetching || secondsRemaining === 0) {
+                textEl.textContent = "Updating...";
+                iconEl.classList.add('spinning');
+            } else {
+                textEl.textContent = `Next update: ${secondsRemaining}s`;
+                iconEl.classList.remove('spinning');
+            }
         }
 
         async function refreshEventOdds() {
             if (!currentEvent || !currentCompetition) return;
 
             try {
+                // Fetch fresh data
                 const events = await fetchCompetitionEvents(currentCompetition);
                 
                 const updatedEvent = events.find(e => 
