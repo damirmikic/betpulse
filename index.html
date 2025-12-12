@@ -3,474 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Betting Feed Provider</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@300;400;600;700&display=swap');
-        
-        :root {
-            --bg-primary: #0a0e1a;
-            --bg-secondary: #131826;
-            --bg-tertiary: #1a2030;
-            --accent-primary: #00ff88;
-            --accent-secondary: #0088ff;
-            --text-primary: #e8edf4;
-            --text-secondary: #8b95a8;
-            --text-muted: #5a6478;
-            --border-color: #2a3448;
-            --shadow-glow: 0 0 30px rgba(0, 255, 136, 0.15);
-        }
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Outfit', sans-serif;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            overflow-x: hidden;
-        }
-        
-        /* Animated background */
-        body::before {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: 
-                radial-gradient(circle at 20% 50%, rgba(0, 136, 255, 0.08) 0%, transparent 50%),
-                radial-gradient(circle at 80% 80%, rgba(0, 255, 136, 0.08) 0%, transparent 50%);
-            animation: bgPulse 8s ease-in-out infinite;
-            z-index: -1;
-        }
-        
-        @keyframes bgPulse {
-            0%, 100% { opacity: 0.5; }
-            50% { opacity: 0.8; }
-        }
-        
-        .container {
-            display: flex;
-            height: 100vh;
-        }
-        
-        /* Sidebar */
-        .sidebar {
-            width: 340px;
-            background: var(--bg-secondary);
-            border-right: 1px solid var(--border-color);
-            overflow-y: auto;
-            flex-shrink: 0;
-        }
-        
-        .sidebar-header {
-            padding: 24px 20px;
-            background: linear-gradient(135deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
-            border-bottom: 1px solid var(--border-color);
-            position: sticky;
-            top: 0;
-            z-index: 10;
-            backdrop-filter: blur(10px);
-        }
-        
-        .sidebar-header h1 {
-            font-size: 22px;
-            font-weight: 700;
-            background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 8px;
-        }
-        
-        .sidebar-header p {
-            font-size: 12px;
-            color: var(--text-muted);
-            font-family: 'JetBrains Mono', monospace;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        
-        .search-box {
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--border-color);
-        }
-        
-        .search-box input {
-            width: 100%;
-            padding: 12px 16px;
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            color: var(--text-primary);
-            font-family: 'Outfit', sans-serif;
-            font-size: 14px;
-            transition: all 0.3s ease;
-        }
-        
-        .search-box input:focus {
-            outline: none;
-            border-color: var(--accent-primary);
-            box-shadow: var(--shadow-glow);
-        }
-        
-        .search-box input::placeholder {
-            color: var(--text-muted);
-        }
-        
-        .competitions-list {
-            padding: 12px 0;
-        }
-        
-        .region-group {
-            margin-bottom: 4px;
-        }
-        
-        .region-header {
-            padding: 12px 20px;
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-            background: var(--bg-primary);
-            position: sticky;
-            top: 130px;
-            z-index: 5;
-        }
-        
-        .competition-item {
-            padding: 12px 20px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            border-left: 3px solid transparent;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .competition-item:hover {
-            background: var(--bg-tertiary);
-            border-left-color: var(--accent-secondary);
-        }
-        
-        .competition-item.active {
-            background: var(--bg-tertiary);
-            border-left-color: var(--accent-primary);
-        }
-        
-        .competition-name {
-            font-size: 14px;
-            font-weight: 400;
-            color: var(--text-primary);
-        }
-        
-        .competition-item.active .competition-name {
-            font-weight: 600;
-            color: var(--accent-primary);
-        }
-        
-        .event-count {
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--text-muted);
-            background: var(--bg-primary);
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-family: 'JetBrains Mono', monospace;
-        }
-        
-        .competition-item.active .event-count {
-            background: rgba(0, 255, 136, 0.15);
-            color: var(--accent-primary);
-        }
-        
-        .events-sublist {
-            display: none;
-            background: rgba(0, 0, 0, 0.2);
-            border-left: 2px solid var(--border-color);
-            margin-left: 20px;
-        }
-        
-        .events-sublist.expanded {
-            display: block;
-        }
-        
-        .event-item {
-            padding: 10px 20px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            border-left: 3px solid transparent;
-            font-size: 13px;
-            color: var(--text-secondary);
-        }
-        
-        .event-item:hover {
-            background: var(--bg-tertiary);
-            color: var(--text-primary);
-            border-left-color: var(--accent-secondary);
-        }
-        
-        .event-item.active {
-            background: var(--bg-tertiary);
-            color: var(--accent-primary);
-            border-left-color: var(--accent-primary);
-            font-weight: 500;
-        }
-        
-        .event-item-teams {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        
-        .event-item-time {
-            font-size: 10px;
-            color: var(--text-muted);
-            margin-top: 2px;
-            font-family: 'JetBrains Mono', monospace;
-        }
-        
-        .expand-icon {
-            transition: transform 0.2s ease;
-            color: var(--text-muted);
-        }
-        
-        .competition-item.expanded .expand-icon {
-            transform: rotate(90deg);
-        }
-        
-        /* Main Content */
-        .main-content {
-            flex: 1;
-            overflow-y: auto;
-            padding: 32px;
-        }
-        
-        .content-header {
-            margin-bottom: 32px;
-            animation: slideIn 0.6s ease;
-        }
-        
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateY(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        
-        .content-header h2 {
-            font-size: 32px;
-            font-weight: 700;
-            margin-bottom: 8px;
-        }
-        
-        .content-header .subtitle {
-            font-size: 14px;
-            color: var(--text-secondary);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            background: var(--accent-primary);
-            border-radius: 50%;
-            animation: pulse 2s ease-in-out infinite;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.5; transform: scale(0.8); }
-        }
-        
-        .loading-state,
-        .empty-state {
-            text-align: center;
-            padding: 80px 20px;
-            color: var(--text-secondary);
-        }
-        
-        .loading-spinner {
-            width: 60px;
-            height: 60px;
-            border: 4px solid var(--border-color);
-            border-top-color: var(--accent-primary);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 24px;
-        }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        
-        .events-grid {
-            display: grid;
-            gap: 20px;
-            animation: fadeIn 0.8s ease;
-        }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-        
-        .event-card {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 24px;
-            transition: all 0.3s ease;
-        }
-        
-        .event-card:hover {
-            transform: translateY(-4px);
-            box-shadow: var(--shadow-glow);
-            border-color: var(--accent-primary);
-        }
-        
-        .event-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 20px;
-        }
-        
-        .event-time {
-            font-size: 12px;
-            font-family: 'JetBrains Mono', monospace;
-            color: var(--text-muted);
-            background: var(--bg-tertiary);
-            padding: 6px 12px;
-            border-radius: 6px;
-        }
-        
-        .event-teams {
-            margin-bottom: 24px;
-        }
-        
-        .team {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 8px 0;
-        }
-        
-        .team-name {
-            font-size: 16px;
-            font-weight: 600;
-        }
-        
-        .markets-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 12px;
-        }
-        
-        .market-card {
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 16px;
-            transition: all 0.2s ease;
-            cursor: pointer;
-        }
-        
-        .market-card:hover {
-            border-color: var(--accent-secondary);
-            transform: scale(1.02);
-        }
-        
-        .market-label {
-            font-size: 11px;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 8px;
-        }
-        
-        .market-odds {
-            font-size: 24px;
-            font-weight: 700;
-            font-family: 'JetBrains Mono', monospace;
-            color: var(--accent-primary);
-        }
-        
-        .market-probability {
-            font-size: 12px;
-            color: var(--text-secondary);
-            margin-top: 4px;
-        }
-        
-        .zip-info {
-            margin-top: 16px;
-            padding: 16px;
-            background: rgba(0, 136, 255, 0.1);
-            border: 1px solid rgba(0, 136, 255, 0.3);
-            border-radius: 8px;
-        }
-        
-        .zip-info-title {
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--accent-secondary);
-            margin-bottom: 8px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        
-        .zip-params {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-            gap: 12px;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 12px;
-        }
-        
-        .zip-param {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-        
-        .zip-param-label {
-            color: var(--text-muted);
-        }
-        
-        .zip-param-value {
-            color: var(--text-primary);
-            font-weight: 600;
-        }
-        
-        /* Scrollbar styling */
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        
-        ::-webkit-scrollbar-track {
-            background: var(--bg-primary);
-        }
-        
-        ::-webkit-scrollbar-thumb {
-            background: var(--border-color);
-            border-radius: 4px;
-        }
-        
-        ::-webkit-scrollbar-thumb:hover {
-            background: var(--text-muted);
-        }
-    </style>
+    <title>Betting Feed Provider - ZIP Distribution</title>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
@@ -493,10 +27,16 @@
         <!-- Main Content -->
         <main class="main-content">
             <div class="content-header">
-                <h2 id="contentTitle">Select a Competition</h2>
-                <div class="subtitle">
-                    <span class="status-dot"></span>
-                    <span id="contentSubtitle">Choose from the sidebar to view betting odds</span>
+                <div class="content-header-text">
+                    <h2 id="contentTitle">Select a Competition</h2>
+                    <div class="subtitle">
+                        <span class="status-dot"></span>
+                        <span id="contentSubtitle">Choose from the sidebar to view betting odds</span>
+                    </div>
+                </div>
+                <div class="odds-toggle">
+                    <button class="toggle-button active" id="feedOddsBtn">Feed Odds</button>
+                    <button class="toggle-button" id="impliedOddsBtn">Implied Odds</button>
                 </div>
             </div>
             
@@ -1020,8 +560,16 @@
             }
         }
 
+        // State
+        let currentOddsMode = 'feed'; // 'feed' or 'implied'
+        let currentEvent = null;
+        let currentCompetition = null;
+
         // Display event details in central area
         function displayEventDetails(event, competition) {
+            currentEvent = event;
+            currentCompetition = competition;
+            
             document.getElementById('contentTitle').textContent = `${event.home.name} vs ${event.away.name}`;
             
             const eventDate = new Date(event.cutoffTime);
@@ -1035,11 +583,28 @@
             
             document.getElementById('contentSubtitle').textContent = `${competition.name} • ${formattedDate}`;
             
-            const contentArea = document.getElementById('contentArea');
+            renderOdds();
+        }
+
+        // Calculate margin from probabilities
+        function calculateMargin(probabilities) {
+            const sum = probabilities.reduce((acc, p) => acc + p, 0);
+            return ((sum - 1) * 100).toFixed(2);
+        }
+
+        // Convert to implied odds (no margin)
+        function toImpliedOdds(probabilities) {
+            const sum = probabilities.reduce((acc, p) => acc + p, 0);
+            return probabilities.map(p => 1 / (p / sum));
+        }
+
+        // Render odds based on current mode
+        function renderOdds() {
+            if (!currentEvent) return;
             
-            // Get markets
-            const matchOddsMarket = event.markets?.['soccer.match_odds']?.submarkets?.['period=ft'];
-            const totalGoalsMarket = event.markets?.['soccer.total_goals']?.submarkets?.['period=ft'];
+            const contentArea = document.getElementById('contentArea');
+            const matchOddsMarket = currentEvent.markets?.['soccer.match_odds']?.submarkets?.['period=ft'];
+            const totalGoalsMarket = currentEvent.markets?.['soccer.total_goals']?.submarkets?.['period=ft'];
             
             let html = '<div style="max-width: 1200px;">';
             
@@ -1049,39 +614,49 @@
                 const drawSelection = matchOddsMarket.selections?.find(s => s.outcome === 'draw');
                 const awaySelection = matchOddsMarket.selections?.find(s => s.outcome === 'away');
                 
-                html += `
-                    <div style="margin-bottom: 32px;">
-                        <h3 style="font-size: 18px; margin-bottom: 16px; color: var(--accent-primary);">Match Odds (1X2)</h3>
-                        <div class="markets-grid">
-                            ${homeSelection ? `
+                if (homeSelection && drawSelection && awaySelection) {
+                    const feedProbs = [homeSelection.probability, drawSelection.probability, awaySelection.probability];
+                    const margin = calculateMargin(feedProbs);
+                    
+                    let displayOdds, displayProbs;
+                    if (currentOddsMode === 'implied') {
+                        displayOdds = toImpliedOdds(feedProbs);
+                        displayProbs = feedProbs.map(p => p / feedProbs.reduce((a, b) => a + b, 0));
+                    } else {
+                        displayOdds = [homeSelection.price, drawSelection.price, awaySelection.price];
+                        displayProbs = feedProbs;
+                    }
+                    
+                    html += `
+                        <div class="market-section">
+                            <h3>
+                                Match Odds (1X2)
+                                ${currentOddsMode === 'feed' ? `<span class="margin-badge">Margin: ${margin}%</span>` : ''}
+                            </h3>
+                            <div class="markets-grid">
                                 <div class="market-card">
                                     <div class="market-label">Home Win</div>
-                                    <div class="market-odds">${homeSelection.price.toFixed(2)}</div>
-                                    <div class="market-probability">${(homeSelection.probability * 100).toFixed(1)}%</div>
+                                    <div class="market-odds">${displayOdds[0].toFixed(2)}</div>
+                                    <div class="market-probability">${(displayProbs[0] * 100).toFixed(1)}%</div>
                                 </div>
-                            ` : ''}
-                            ${drawSelection ? `
                                 <div class="market-card">
                                     <div class="market-label">Draw</div>
-                                    <div class="market-odds">${drawSelection.price.toFixed(2)}</div>
-                                    <div class="market-probability">${(drawSelection.probability * 100).toFixed(1)}%</div>
+                                    <div class="market-odds">${displayOdds[1].toFixed(2)}</div>
+                                    <div class="market-probability">${(displayProbs[1] * 100).toFixed(1)}%</div>
                                 </div>
-                            ` : ''}
-                            ${awaySelection ? `
                                 <div class="market-card">
                                     <div class="market-label">Away Win</div>
-                                    <div class="market-odds">${awaySelection.price.toFixed(2)}</div>
-                                    <div class="market-probability">${(awaySelection.probability * 100).toFixed(1)}%</div>
+                                    <div class="market-odds">${displayOdds[2].toFixed(2)}</div>
+                                    <div class="market-probability">${(displayProbs[2] * 100).toFixed(1)}%</div>
                                 </div>
-                            ` : ''}
+                            </div>
                         </div>
-                    </div>
-                `;
+                    `;
+                }
             }
             
             // Total Goals Section
             if (totalGoalsMarket && totalGoalsMarket.selections) {
-                // Group by total value
                 const goalLines = {};
                 totalGoalsMarket.selections.forEach(sel => {
                     const match = sel.params.match(/total=([\d.]+)/);
@@ -1092,36 +667,43 @@
                     }
                 });
                 
-                html += `
-                    <div style="margin-bottom: 32px;">
-                        <h3 style="font-size: 18px; margin-bottom: 16px; color: var(--accent-primary);">Total Goals</h3>
-                `;
+                html += `<div class="market-section"><h3>Total Goals</h3>`;
                 
-                // Display popular lines
                 const popularLines = ['2.5', '1.5', '3.5', '2.75', '3.25'];
                 popularLines.forEach(line => {
-                    if (goalLines[line]) {
+                    if (goalLines[line] && goalLines[line].over && goalLines[line].under) {
                         const over = goalLines[line].over;
                         const under = goalLines[line].under;
                         
+                        const feedProbs = [over.probability, under.probability];
+                        const margin = calculateMargin(feedProbs);
+                        
+                        let displayOdds, displayProbs;
+                        if (currentOddsMode === 'implied') {
+                            displayOdds = toImpliedOdds(feedProbs);
+                            displayProbs = feedProbs.map(p => p / feedProbs.reduce((a, b) => a + b, 0));
+                        } else {
+                            displayOdds = [over.price, under.price];
+                            displayProbs = feedProbs;
+                        }
+                        
                         html += `
-                            <div style="margin-bottom: 16px;">
-                                <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px;">Over/Under ${line}</div>
-                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                                    ${over ? `
-                                        <div class="market-card">
-                                            <div class="market-label">Over ${line}</div>
-                                            <div class="market-odds">${over.price.toFixed(2)}</div>
-                                            <div class="market-probability">${(over.probability * 100).toFixed(1)}%</div>
-                                        </div>
-                                    ` : ''}
-                                    ${under ? `
-                                        <div class="market-card">
-                                            <div class="market-label">Under ${line}</div>
-                                            <div class="market-odds">${under.price.toFixed(2)}</div>
-                                            <div class="market-probability">${(under.probability * 100).toFixed(1)}%</div>
-                                        </div>
-                                    ` : ''}
+                            <div class="goal-line-section">
+                                <div class="goal-line-header">
+                                    Over/Under ${line}
+                                    ${currentOddsMode === 'feed' ? `<span style="color: #ff8800; margin-left: 8px;">+${margin}%</span>` : ''}
+                                </div>
+                                <div class="goal-line-grid">
+                                    <div class="market-card">
+                                        <div class="market-label">Over ${line}</div>
+                                        <div class="market-odds">${displayOdds[0].toFixed(2)}</div>
+                                        <div class="market-probability">${(displayProbs[0] * 100).toFixed(1)}%</div>
+                                    </div>
+                                    <div class="market-card">
+                                        <div class="market-label">Under ${line}</div>
+                                        <div class="market-odds">${displayOdds[1].toFixed(2)}</div>
+                                        <div class="market-probability">${(displayProbs[1] * 100).toFixed(1)}%</div>
+                                    </div>
                                 </div>
                             </div>
                         `;
@@ -1134,6 +716,21 @@
             html += '</div>';
             contentArea.innerHTML = html;
         }
+
+        // Toggle buttons
+        document.getElementById('feedOddsBtn').addEventListener('click', () => {
+            currentOddsMode = 'feed';
+            document.getElementById('feedOddsBtn').classList.add('active');
+            document.getElementById('impliedOddsBtn').classList.remove('active');
+            if (currentEvent) renderOdds();
+        });
+
+        document.getElementById('impliedOddsBtn').addEventListener('click', () => {
+            currentOddsMode = 'implied';
+            document.getElementById('impliedOddsBtn').classList.add('active');
+            document.getElementById('feedOddsBtn').classList.remove('active');
+            if (currentEvent) renderOdds();
+        });
 
         // Search functionality
         document.getElementById('searchInput').addEventListener('input', (e) => {
