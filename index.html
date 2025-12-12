@@ -586,16 +586,16 @@
             renderOdds();
         }
 
-        // Calculate margin from probabilities
-        function calculateMargin(probabilities) {
-            const sum = probabilities.reduce((acc, p) => acc + p, 0);
+        // Calculate margin from odds (bookmaker overround)
+        function calculateMargin(odds) {
+            const sum = odds.reduce((acc, odd) => acc + (1 / odd), 0);
             return ((sum - 1) * 100).toFixed(2);
         }
 
         // Convert to implied odds (no margin)
-        function toImpliedOdds(probabilities) {
-            const sum = probabilities.reduce((acc, p) => acc + p, 0);
-            return probabilities.map(p => 1 / (p / sum));
+        function toImpliedOdds(odds) {
+            const sum = odds.reduce((acc, odd) => acc + (1 / odd), 0);
+            return odds.map(odd => odd * sum);
         }
 
         // Render odds based on current mode
@@ -615,16 +615,16 @@
                 const awaySelection = matchOddsMarket.selections?.find(s => s.outcome === 'away');
                 
                 if (homeSelection && drawSelection && awaySelection) {
-                    const feedProbs = [homeSelection.probability, drawSelection.probability, awaySelection.probability];
-                    const margin = calculateMargin(feedProbs);
+                    const feedOdds = [homeSelection.price, drawSelection.price, awaySelection.price];
+                    const margin = calculateMargin(feedOdds);
                     
                     let displayOdds, displayProbs;
                     if (currentOddsMode === 'implied') {
-                        displayOdds = toImpliedOdds(feedProbs);
-                        displayProbs = feedProbs.map(p => p / feedProbs.reduce((a, b) => a + b, 0));
+                        displayOdds = toImpliedOdds(feedOdds);
+                        displayProbs = displayOdds.map(odd => 1 / odd);
                     } else {
-                        displayOdds = [homeSelection.price, drawSelection.price, awaySelection.price];
-                        displayProbs = feedProbs;
+                        displayOdds = feedOdds;
+                        displayProbs = feedOdds.map(odd => 1 / odd);
                     }
                     
                     html += `
@@ -675,16 +675,16 @@
                         const over = goalLines[line].over;
                         const under = goalLines[line].under;
                         
-                        const feedProbs = [over.probability, under.probability];
-                        const margin = calculateMargin(feedProbs);
+                        const feedOdds = [over.price, under.price];
+                        const margin = calculateMargin(feedOdds);
                         
                         let displayOdds, displayProbs;
                         if (currentOddsMode === 'implied') {
-                            displayOdds = toImpliedOdds(feedProbs);
-                            displayProbs = feedProbs.map(p => p / feedProbs.reduce((a, b) => a + b, 0));
+                            displayOdds = toImpliedOdds(feedOdds);
+                            displayProbs = displayOdds.map(odd => 1 / odd);
                         } else {
-                            displayOdds = [over.price, under.price];
-                            displayProbs = feedProbs;
+                            displayOdds = feedOdds;
+                            displayProbs = feedOdds.map(odd => 1 / odd);
                         }
                         
                         html += `
