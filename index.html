@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Betting Feed Provider</title>
+    <title>Betting Feed Provider - ZIP Distribution</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -87,33 +87,47 @@
             list.innerHTML = '<div class="loading-state" style="padding:20px;">Loading competitions...</div>';
 
             try {
-                // Determine environment
                 const isNetlify = window.location.hostname.includes('netlify.app') || 
                                  window.location.hostname.includes('netlify.com');
                 
-                let rawCompetitions = [];
-
                 if (isNetlify) {
-                    // Fetch all soccer competitions via proxy
                     const response = await fetch(`${API_PROXY_URL}/soccer`);
                     if (!response.ok) throw new Error(`API Error: ${response.status}`);
                     
                     const data = await response.json();
-                    rawCompetitions = data.competitions || [];
+                    
+                    // FIX: Handle the hierarchical data structure (Categories -> Competitions)
+                    if (data.categories && Array.isArray(data.categories)) {
+                        // The API returned the grouped structure directly
+                        renderSidebar(data.categories);
+                    } 
+                    else if (data.competitions && Array.isArray(data.competitions)) {
+                        // Fallback: The API returned a flat list
+                        const grouped = groupCompetitions(data.competitions);
+                        renderSidebar(grouped);
+                    } else {
+                        console.warn('Unexpected data structure:', data);
+                        list.innerHTML = '<div class="empty-state">No competitions found (Invalid Format)</div>';
+                    }
                 } else {
-                    console.warn("Local Dev: Cannot fetch live competitions without proxy. Using simplified mock.");
-                    rawCompetitions = [
-                        { name: "Premier League", key: "soccer-england-premier-league", eventCount: 10, category: { name: "England" } },
-                        { name: "La Liga", key: "soccer-spain-laliga", eventCount: 8, category: { name: "Spain" } },
-                        { name: "Bundesliga", key: "soccer-germany-bundesliga", eventCount: 6, category: { name: "Germany" } }
+                    // Local Dev Mock Data
+                    console.warn("Local Dev: Using mock data.");
+                    const mockCategories = [
+                        {
+                            name: "England",
+                            competitions: [
+                                { name: "Premier League", key: "soccer-england-premier-league", eventCount: 10 },
+                                { name: "Championship", key: "soccer-england-championship", eventCount: 5 }
+                            ]
+                        },
+                        {
+                            name: "Spain",
+                            competitions: [
+                                { name: "La Liga", key: "soccer-spain-laliga", eventCount: 8 }
+                            ]
+                        }
                     ];
-                }
-
-                if (rawCompetitions.length > 0) {
-                    const groupedData = groupCompetitions(rawCompetitions);
-                    renderSidebar(groupedData);
-                } else {
-                    list.innerHTML = '<div class="empty-state">No competitions found.</div>';
+                    renderSidebar(mockCategories);
                 }
 
             } catch (error) {
@@ -122,6 +136,7 @@
             }
         }
 
+        // Helper to group flat list (only used if API returns flat list)
         function groupCompetitions(competitions) {
             const groups = {};
 
@@ -138,7 +153,6 @@
                 });
             });
 
-            // Sort categories alphabetically, then competitions by event count
             return Object.keys(groups).sort().map(category => ({
                 name: category,
                 competitions: groups[category].sort((a, b) => b.eventCount - a.eventCount)
@@ -153,8 +167,17 @@
             const list = document.getElementById('competitionsList');
             list.innerHTML = '';
 
+            // Ensure categories are valid
+            if (!categories || categories.length === 0) {
+                list.innerHTML = '<div class="empty-state">No competitions found.</div>';
+                return;
+            }
+
+            // Sort categories alphabetically
+            categories.sort((a, b) => a.name.localeCompare(b.name));
+
             categories.forEach(category => {
-                if (category.competitions.length === 0) return;
+                if (!category.competitions || category.competitions.length === 0) return;
 
                 const regionHeader = document.createElement('div');
                 regionHeader.className = 'region-header';
@@ -164,7 +187,10 @@
                 const regionGroup = document.createElement('div');
                 regionGroup.className = 'region-group';
 
-                category.competitions.forEach(comp => {
+                // Sort competitions by event count (descending)
+                const sortedComps = [...category.competitions].sort((a, b) => b.eventCount - a.eventCount);
+
+                sortedComps.forEach(comp => {
                     const item = document.createElement('div');
                     item.className = 'competition-item';
                     item.dataset.key = comp.key;
@@ -304,10 +330,6 @@
             const matchOddsMarket = currentEvent.markets?.['soccer.match_odds']?.submarkets?.['period=ft'];
             const totalGoalsMarket = currentEvent.markets?.['soccer.total_goals']?.submarkets?.['period=ft'];
             
-            // Calculate ZIP stats for extra insights (if needed later)
-            // const homePrice = matchOddsMarket?.selections?.find(s => s.outcome === 'home')?.price;
-            // const zipStats = homePrice ? calculateZIPOdds(homePrice, ...) : null;
-
             let html = '<div style="max-width: 1200px;">';
             
             // --- Match Odds Section ---
@@ -394,7 +416,6 @@
 
         function startAutoRefresh() {
             if (refreshInterval) clearInterval(refreshInterval);
-            // Refresh every 15 seconds
             refreshInterval = setInterval(refreshEventOdds, 15000); 
         }
 
@@ -402,10 +423,8 @@
             if (!currentEvent || !currentCompetition) return;
 
             try {
-                // Fetch fresh data for the entire competition
                 const events = await fetchCompetitionEvents(currentCompetition);
                 
-                // Find the specific event again
                 const updatedEvent = events.find(e => 
                     e.home?.name === currentEvent.home?.name && 
                     e.away?.name === currentEvent.away?.name
@@ -413,7 +432,6 @@
                 
                 if (updatedEvent) {
                     detectOddsChanges(currentEvent, updatedEvent);
-                    // CRITICAL: Update currentEvent to the new one so next comparison is valid
                     currentEvent = updatedEvent;
                     renderOdds();
                 }
@@ -425,7 +443,6 @@
         function detectOddsChanges(oldEvent, newEvent) {
             const matchKey = `${oldEvent.home.name}-${oldEvent.away.name}`;
             
-            // Helper to safe access
             const getMarket = (e) => e.markets?.['soccer.match_odds']?.submarkets?.['period=ft'];
             const oldMarket = getMarket(oldEvent);
             const newMarket = getMarket(newEvent);
@@ -455,7 +472,6 @@
 
         function addOddsChange(change) {
             const container = document.getElementById('oddsChanges');
-            // Remove "empty" message if it exists
             const emptyMsg = container.querySelector('.odds-changes-empty');
             if (emptyMsg) emptyMsg.remove();
             
@@ -476,7 +492,6 @@
             
             container.insertBefore(changeEl, container.firstChild);
             
-            // Limit history
             if (container.children.length > 20) {
                 container.removeChild(container.lastChild);
             }
@@ -496,10 +511,8 @@
             return odds.map(odd => odd * sum);
         }
 
-        // Mock Data Generator (for local dev)
         function generateMockEvents(competition) {
             const now = new Date();
-            // Just return a few generic events for demo
             return [1, 2, 3].map(i => ({
                 home: { name: `Home Team ${i}` },
                 away: { name: `Away Team ${i}` },
@@ -531,15 +544,6 @@
             }));
         }
 
-        // ZIP Distribution Class (Preserved from original)
-        class ZIPDistribution {
-            constructor(lambda, pi) { this.lambda = lambda; this.pi = pi; }
-            poissonPMF(k) { return Math.exp(-this.lambda) * Math.pow(this.lambda, k) / this.factorial(k); }
-            factorial(n) { return n <= 1 ? 1 : n * this.factorial(n - 1); }
-            zipPMF(k) { return k === 0 ? this.pi + (1 - this.pi) * this.poissonPMF(0) : (1 - this.pi) * this.poissonPMF(k); }
-            probability(k) { return this.zipPMF(k); }
-        }
-
         // ==========================================
         // 7. EVENT LISTENERS
         // ==========================================
@@ -569,7 +573,6 @@
                 const visible = name.includes(searchTerm);
                 item.style.display = visible ? 'flex' : 'none';
             });
-            // Update region header visibility
             document.querySelectorAll('.region-group').forEach(group => {
                 const visibleItems = Array.from(group.querySelectorAll('.competition-item'))
                     .filter(item => item.style.display !== 'none');
